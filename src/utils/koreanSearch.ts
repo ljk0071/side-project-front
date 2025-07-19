@@ -9,13 +9,13 @@
  */
 
 // 한글 유니코드 관련 상수
-const HANGUL_BASE = 0xac00 // 가
-const HANGUL_END = 0xd7a3 // 힣
+const HANGUL_BASE = 0xac00; // 가
+const HANGUL_END = 0xd7a3; // 힣
 // const CHOSEONG_BASE = 0x1100; // ㄱ
 // const JUNGSEONG_BASE = 0x1161; // ㅏ
 // const JONGSEONG_BASE = 0x11a7; // ㄱ (종성)
-const JONGSEONG_COUNT = 28 // 종성 개수 (없음 포함)
-const JUNGSEONG_COUNT = 21 // 중성 개수
+const JONGSEONG_COUNT = 28; // 종성 개수 (없음 포함)
+const JUNGSEONG_COUNT = 21; // 중성 개수
 // const CHOSEONG_COUNT = 19; // 초성 개수
 
 // 한글 초성 목록 (순서 중요)
@@ -39,7 +39,7 @@ const CHOSEONG_LIST = [
   'ㅌ',
   'ㅍ',
   'ㅎ',
-]
+];
 
 /**
  * 한글 텍스트에서 초성만 추출하는 함수
@@ -48,10 +48,10 @@ const CHOSEONG_LIST = [
  * @returns 추출된 초성 문자열 (한글이 아닌 문자는 그대로 유지)
  */
 export function extractChoseong(text: string): string {
-  let result = ''
+  let result = '';
 
   for (let i = 0; i < text.length; i++) {
-    const charCode = text.charCodeAt(i)
+    const charCode = text.charCodeAt(i);
 
     // 한글 문자인지 확인 ('가'부터 '힣'까지)
     if (charCode >= HANGUL_BASE && charCode <= HANGUL_END) {
@@ -59,15 +59,15 @@ export function extractChoseong(text: string): string {
       // (문자 코드 - 한글 시작 코드) / (중성 개수 * 종성 개수)
       const choseongIndex = Math.floor(
         (charCode - HANGUL_BASE) / (JUNGSEONG_COUNT * JONGSEONG_COUNT),
-      )
-      result += CHOSEONG_LIST[choseongIndex]
+      );
+      result += CHOSEONG_LIST[choseongIndex];
     } else {
       // 한글이 아닌 문자는 그대로 유지
-      result += text[i]
+      result += text[i];
     }
   }
 
-  return result
+  return result;
 }
 
 /**
@@ -79,14 +79,14 @@ export function extractChoseong(text: string): string {
  */
 export function matchesByChoseong(text: string, query: string): boolean {
   // 검색어가 비어있으면 항상 일치로 간주
-  if (!query) return true
+  if (!query) return true;
 
   // 텍스트와 검색어의 초성 추출 (소문자로 변환하여 대소문자 구분 없애기)
-  const textChoseong = extractChoseong(text.toLowerCase())
-  const queryChoseong = extractChoseong(query.toLowerCase())
+  const textChoseong = extractChoseong(text.toLowerCase());
+  const queryChoseong = extractChoseong(query.toLowerCase());
 
   // 텍스트 초성에 검색어 초성이 포함되는지 확인
-  return textChoseong.includes(queryChoseong)
+  return textChoseong.includes(queryChoseong);
 }
 
 /**
@@ -98,16 +98,16 @@ export function matchesByChoseong(text: string, query: string): boolean {
  */
 export function koreanSearch(text: string, query: string): boolean {
   // 검색어가 비어있으면 항상 일치로 간주
-  if (!query) return true
+  if (!query) return true;
 
-  const lowerText = text.toLowerCase()
-  const lowerQuery = query.toLowerCase()
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
 
   // 1. 일반 문자열 포함 여부 확인
   if (lowerText.includes(lowerQuery)) {
-    return true
+    return true;
   }
 
   // 2. 초성 매칭 확인
-  return matchesByChoseong(text, query)
+  return matchesByChoseong(text, query);
 }

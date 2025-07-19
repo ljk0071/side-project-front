@@ -2,7 +2,7 @@
 /**
  * SearchBar 컴포넌트
  *
- * 이 컴포넌트는 카드 검색을 위한 입력 필드를 제공합니다.
+ * 이 컴포넌트는 파티 검색을 위한 입력 필드를 제공합니다.
  * v-model을 통한 양방향 바인딩을 지원하며, 포커스 상태에 따른 스타일 변화와
  * 외부에서의 포커스 설정을 위한 메소드를 노출합니다.
  */
@@ -70,7 +70,7 @@ defineExpose({
       ref="inputRef"
       v-model="searchValue"
       class="search-input"
-      placeholder="카드 검색..."
+      placeholder="파티 검색..."
       type="text"
       @blur="handleBlur"
       @focus="handleFocus"
@@ -81,7 +81,9 @@ defineExpose({
 <style scoped>
 /* 검색바 기본 스타일 */
 .search-bar {
-  width: 300px;
+  width: 14vw;
+  min-width: 200px;
+  max-width: 300px;
   height: 40px;
   background-color: #f7f7f7;
   border: 1px solid #cccccc;

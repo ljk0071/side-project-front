@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 /**
  * ApiExample.vue - API 스토어 사용 예제 컴포넌트
  *
@@ -6,7 +6,7 @@
  * useApiStore를 통해 HTTP 요청을 수행하고 결과를 표시합니다.
  */
 import { useApiStore } from '@/stores/useKyProperties.ts';
-import { ref, onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 
 // API 스토어 초기화
@@ -69,10 +69,10 @@ onMounted(() => {
 
       <div class="form-group">
         <label for="endpoint">엔드포인트:</label>
-        <input id="endpoint" v-model="endpoint" type="text" placeholder="예: users" />
+        <input id="endpoint" v-model="endpoint" placeholder="예: users" type="text" />
       </div>
 
-      <div class="form-group" v-if="selectedMethod !== 'get'">
+      <div v-if="selectedMethod !== 'get'" class="form-group">
         <label for="request-data">요청 데이터 (JSON):</label>
         <textarea
           id="request-data"
@@ -82,7 +82,7 @@ onMounted(() => {
         ></textarea>
       </div>
 
-      <button @click="makeRequest" :disabled="loading">
+      <button :disabled="loading" @click="makeRequest">
         {{ loading ? '요청 중...' : '요청 보내기' }}
       </button>
     </div>

@@ -32,7 +32,7 @@ async function supportsDuplex(): Promise<boolean> {
     // 3. 실제로 duplex가 적용되었는지 여러 방법으로 확인
 
     // 방법 1: request 객체에 duplex 속성이 있는지 확인
-    const requestAny = request as any;
+    const requestAny = request as unknown as { duplex: string };
     const hasDuplexProperty = 'duplex' in requestAny;
 
     // 방법 2: 실제 fetch를 시도해보고 스트림이 작동하는지 확인
@@ -63,10 +63,7 @@ let kyInstance: ReturnType<typeof ky.create> | null = null;
 function createKyWithBasicOptions() {
   const kyProperties = useKyProperties();
   kyInstance = ky.create({
-    headers: {
-      Authorization: 'adkjhdfsjkhfsjdksjdkfhjks',
-    },
-    prefixUrl: 'http://localhost:8080/',
+    prefixUrl: `${window.location.origin}:8080/`,
     retry: {
       limit: 2,
       methods: ['get'],
@@ -84,8 +81,8 @@ function createKyWithBasicOptions() {
               {},
               {
                 headers: {
-                  'X-CSRF-TOKEN': kyProperties.csrfToken,
-                  'REFRESH-TOKEN': kyProperties.refreshToken,
+                  'X-CSRF-TOKEN': kyProperties.csrfToken ?? '',
+                  'REFRESH-TOKEN': kyProperties.refreshToken ?? '',
                 },
               },
             ).json<{
@@ -96,7 +93,8 @@ function createKyWithBasicOptions() {
             kyProperties.csrfToken = result.csrfToken;
             kyProperties.refreshToken = result.refreshToken;
 
-            return;
+            // Ensure the function always returns error as per type requirements
+            return error;
           }
 
           // 다른 에러는 그대로 throw
@@ -108,7 +106,7 @@ function createKyWithBasicOptions() {
 
   supportsDuplex().then((result) => {
     if (result) {
-      kyInstance = kyInstance.extend({
+      kyInstance = kyInstance!.extend({
         onDownloadProgress: (progress, chunk) => {
           console.log(
             `${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`,

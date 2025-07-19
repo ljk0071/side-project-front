@@ -1,16 +1,16 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 /**
- * PartyCard3 컴포넌트
+ * PartyCard 컴포넌트
  *
- * 이 컴포넌트는 파티/이벤트 카드를 보여주며, 마우스 움직임에 따른 틸트 효과와
- * 카드 확장 기능을 제공합니다. vueuse/core의 useMouseInElement와 useEventListener를
- * 활용하여 인터랙티브한 UI 경험을 제공합니다.
+ * 이 컴포넌트는 파티/이벤트 카드를 보여주며, 마우스 움직임에 따른 틸트 효과를
+ * 제공합니다. vueuse/core의 useMouseInElement를 활용하여 인터랙티브한 UI 경험을 제공합니다.
  */
 import { useEventListener, useMouseInElement } from '@vueuse/core';
 import { computed, onMounted, ref } from 'vue';
+import { useCustomModal } from '@/composables/useCustomModal.ts';
 
 // 컴포넌트 프롭스 정의
-defineProps<{
+const props = defineProps<{
   /** 카드의 제목 */
   title: string;
   /** 카드의 설명 텍스트 */
@@ -19,7 +19,13 @@ defineProps<{
   tags: string[];
   /** 카드 이미지 배경 색상 */
   imageColor: string;
+  /** 현재 멤버 수 */
+  currentMembers: number;
+  /** 최대 멤버 수 */
+  maxMembers: number;
 }>();
+
+const { customConfirm, customSuccess } = useCustomModal();
 
 // 상태 관리를 위한 ref 변수들
 /** 카드가 확장된 상태인지 여부를 저장 */
@@ -72,7 +78,6 @@ const tiltStyle = computed(() => {
 
 /**
  * 확장된 카드의 가시성을 제어하는 스타일
- * 타입스크립트 타입 에러 방지를 위해 as const를 사용하여 리터럴 타입 지정
  */
 const expandedCardStyle = computed(() => {
   return {
@@ -82,11 +87,24 @@ const expandedCardStyle = computed(() => {
 });
 
 /**
+ * description 일부분만 보여주는 계산된 속성
+ */
+const truncatedDescription = computed(() => {
+  const lines = props.description.split('\n');
+  return lines.slice(0, 5).join('\n');
+});
+
+/**
+ * 지원하기 버튼 클릭 핸들러
+ */
+const handleSupport = async () => {
+  await customSuccess('지원이 완료되었습니다!');
+};
+
+/**
  * 컴포넌트가 마운트될 때 이벤트 리스너 설정
- * 확장된 카드 외부를 클릭하면 카드가 닫히도록 함
  */
 onMounted(() => {
-  // 확장된 카드 외부 클릭 시 닫기 처리
   useEventListener(
     document,
     'click',
@@ -99,14 +117,14 @@ onMounted(() => {
         isExpanded.value = false;
       }
     },
-    { passive: true }, // 성능 최적화를 위해 passive 이벤트 리스너 사용
+    { passive: true },
   );
 });
 </script>
 
 <template>
   <div>
-    <!-- 확장 가능한 일반 카드 -->
+    <!-- 일반 카드 -->
     <div ref="cardTilt" :style="tiltStyle" class="card" @click.stop="isExpanded = !isExpanded">
       <!-- 마우스 위치에 따른 빛 효과 -->
       <div
@@ -116,30 +134,17 @@ onMounted(() => {
         }"
         class="card-shine"
       ></div>
-      <!-- 카드 이미지 영역 -->
-      <div
-        :class="{ 'rgb-breath': true }"
-        :style="{ '--base-color': imageColor }"
-        class="card-image"
-      ></div>
+      <!-- 멤버 수 표시 -->
+      <div class="member-count">
+        <span class="current-members">{{ currentMembers }}</span>
+        <span class="divider">/</span>
+        <span class="max-members">{{ maxMembers }}</span>
+      </div>
+
       <!-- 카드 컨텐츠 영역 -->
       <div class="card-content">
-        <h3 class="card-title">{{ title }}</h3>
-        <p class="card-description">{{ description }}</p>
-        <div class="card-tags">
-          <span
-            v-for="(tag, index) in tags"
-            :key="index"
-            :style="{
-              backgroundColor: index === 0 ? 'var(--tag1-bg-color)' : 'var(--tag2-bg-color)',
-              color: index === 0 ? 'var(--tag1-text-color)' : 'var(--tag2-text-color)',
-              transition: 'background-color 0.3s, color 0.3s',
-            }"
-            class="tag"
-          >
-            {{ tag }}
-          </span>
-        </div>
+        <p class="card-description" v-html="truncatedDescription.replace(/\n/g, '<br>')"></p>
+        <button class="support-button" @click.stop="handleSupport">지원하기</button>
       </div>
     </div>
 
@@ -152,26 +157,10 @@ onMounted(() => {
       <button class="close-button" @click.stop="isExpanded = false">
         <span class="close-icon">×</span>
       </button>
-      <!-- 확장된 카드 이미지 영역 -->
-      <div :style="{ '--base-color': imageColor }" class="expanded-card-image"></div>
       <!-- 확장된 카드 컨텐츠 영역 -->
       <div class="expanded-card-content">
-        <h2 class="expanded-card-title">{{ title }}</h2>
-        <p class="expanded-card-description">{{ description }}</p>
-        <div class="expanded-card-tags">
-          <span
-            v-for="(tag, index) in tags"
-            :key="index"
-            :style="{
-              backgroundColor: index === 0 ? 'var(--tag1-bg-color)' : 'var(--tag2-bg-color)',
-              color: index === 0 ? 'var(--tag1-text-color)' : 'var(--tag2-text-color)',
-              transition: 'background-color 0.3s, color 0.3s',
-            }"
-            class="tag"
-          >
-            {{ tag }}
-          </span>
-        </div>
+        <p class="expanded-card-description" v-html="description.replace(/\n/g, '<br>')"></p>
+        <button class="support-button" @click="handleSupport">지원하기</button>
       </div>
     </div>
   </div>
@@ -180,16 +169,20 @@ onMounted(() => {
 <style scoped>
 /* 카드 기본 스타일 */
 .card {
-  width: 320px;
-  height: 380px;
+  width: 100%; /* 그리드 셀 크기에 맞춤 */
+  height: 100%; /* 그리드 셀 높이에 맞춤 */
+  min-height: unset; /* 최소 높이 제거 */
+  max-height: unset; /* 최대 높이 제거 */
+  min-width: 120px; /* 최소 너비만 유지 */
+  max-width: unset; /* 최대 너비 제거 */
   background-color: var(--card-bg-color);
   border: 1px solid var(--border-color);
-  border-radius: 20px;
+  border-radius: 12px; /* 크기에 맞게 줄임 */
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 10px;
+  gap: 0.2vw;
+  padding: 0.3vw;
   transform-style: preserve-3d; /* 3D 효과를 위한 설정 */
   position: relative;
   z-index: 1;
@@ -215,139 +208,31 @@ onMounted(() => {
   transition: opacity 0.3s ease;
 }
 
-/* 카드 이미지 영역 스타일 */
-.card-image {
-  width: 100%;
-  height: 160px;
-  border-radius: 12px;
-  transform: translateZ(20px); /* 3D 공간에서 앞으로 이동 */
-}
-
-/* RGB 호흡 효과 스타일 */
-.rgb-breath {
-  animation: rgbBreath 8s infinite ease-in-out;
-  background-color: var(--base-color);
-  position: relative;
-  overflow: hidden;
-}
-
-/* RGB 호흡 효과를 위한 오버레이 */
-.rgb-breath::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    45deg,
-    rgba(255, 0, 128, 0) 0%,
-    rgba(255, 0, 128, 0.3) 50%,
-    rgba(0, 128, 255, 0.3) 75%,
-    rgba(128, 255, 0, 0.3) 100%
-  );
-  animation: rgbGlow 8s infinite alternate cubic-bezier(0.455, 0.03, 0.515, 0.955);
-  mix-blend-mode: overlay; /* 색상 블렌딩 모드 */
-  border-radius: 12px;
-}
-
-/* RGB 호흡 애니메이션 정의 */
-@keyframes rgbBreath {
-  0%,
-  100% {
-    background-color: var(--base-color);
-    transform: scale(1);
-  }
-  25% {
-    background-color: rgba(255, 0, 128, 0.8); /* 핑크 */
-    transform: scale(1.02);
-  }
-  50% {
-    background-color: rgba(0, 128, 255, 0.8); /* 파랑 */
-    transform: scale(1);
-  }
-  75% {
-    background-color: rgba(128, 255, 0, 0.8); /* 그린 */
-    transform: scale(1.02);
-  }
-}
-
-/* RGB 글로우 애니메이션 정의 */
-@keyframes rgbGlow {
-  0% {
-    opacity: 0.5;
-    background-position: 0 50%;
-  }
-  50% {
-    opacity: 0.8;
-    background-position: 100% 50%;
-  }
-  100% {
-    opacity: 0.5;
-    background-position: 0 50%;
-  }
-}
-
 /* 카드 컨텐츠 영역 스타일 */
 .card-content {
-  padding: 20px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   transform: translateZ(10px); /* 3D 공간에서 앞으로 이동 */
-}
-
-/* 카드 제목 스타일 */
-.card-title {
-  font-family: 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--card-title-color);
-  margin: 0;
-  transition: color 0.3s;
+  height: 100%;
 }
 
 /* 카드 설명 스타일 */
 .card-description {
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--card-description-color);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.4;
   transition: color 0.3s;
-}
-
-/* 카드 태그 컨테이너 스타일 */
-.card-tags {
-  display: flex;
-  gap: 8px;
-  padding: 10px 0;
-}
-
-/* 개별 태그 스타일 */
-.tag {
-  padding: 4px 12px;
-  border-radius: 14px;
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-}
-
-/* 확장 버튼 스타일 */
-.expand-button {
-  padding: 8px 16px;
-  background-color: #3366cc;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  margin-bottom: 10px;
-  transition: background-color 0.2s ease;
-}
-
-.expand-button:hover {
-  background-color: #2855a8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  max-height: 5.6em;
+  flex: 1;
 }
 
 /* 오버레이 스타일 */
@@ -357,17 +242,15 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--overlay-bg-color);
+  background-color: rgba(0, 0, 0, 0.5);
   z-index: 100;
   opacity: 0;
   visibility: hidden;
   transition:
     opacity 0.3s ease,
-    visibility 0.3s ease,
-    background-color 0.3s;
+    visibility 0.3s ease;
 }
 
-/* 활성화된 오버레이 스타일 */
 .overlay.active {
   opacity: 1;
   visibility: visible;
@@ -378,27 +261,24 @@ onMounted(() => {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.9); /* 중앙 정렬 및 초기 크기 설정 */
+  transform: translate(-50%, -50%) scale(0.9);
   width: 80%;
-  max-width: 800px;
-  height: auto;
-  max-height: 90vh;
+  max-width: 600px;
+  max-height: 80vh;
   background-color: var(--card-bg-color);
   border-radius: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   z-index: 200;
   padding: 20px;
-  overflow: auto; /* 내용이 많을 경우 스크롤 가능하도록 설정 */
+  overflow-y: auto;
   transition:
     transform 0.3s ease,
     opacity 0.3s ease,
-    visibility 0.3s ease,
-    background-color 0.3s;
+    visibility 0.3s ease;
 }
 
-/* 확장된 카드가 보일 때 스타일 */
 .expanded-card[style*='visible'] {
-  transform: translate(-50%, -50%) scale(1); /* 완전히 표시될 때 원래 크기로 */
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* 닫기 버튼 스타일 */
@@ -408,92 +288,33 @@ onMounted(() => {
   right: 15px;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  background-color: var(--close-button-bg);
-  border: 1px solid var(--close-button-border);
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
   z-index: 10;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(4px); /* 배경 블러 효과 */
-  padding: 0;
 }
 
-/* 닫기 버튼 호버 스타일 */
 .close-button:hover {
-  background-color: var(--close-button-hover-bg);
-  transform: scale(1.05);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  background-color: rgba(0, 0, 0, 0.2);
+  transform: scale(1.1);
 }
 
-/* 닫기 아이콘 스타일 */
 .close-icon {
-  color: var(--close-button-color);
-  font-size: 20px;
-  font-weight: 300;
-  line-height: 1;
-  display: inline-block;
-  transform: translateY(-1px);
-  transition:
-    transform 0.2s ease,
-    color 0.2s ease;
+  font-size: 18px;
+  color: #666;
 }
 
-/* 닫기 아이콘 호버 스타일 */
-.close-button:hover .close-icon {
-  transform: translateY(-1px) scale(1.2);
-}
-
-/* 확장된 카드 이미지 스타일 */
-.expanded-card-image {
-  width: 100%;
-  height: 300px;
-  border-radius: 12px;
-  background-color: var(--base-color);
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-
-/* 확장된 카드 이미지 오버레이 */
-.expanded-card-image::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    45deg,
-    rgba(255, 0, 128, 0) 0%,
-    rgba(255, 0, 128, 0.3) 50%,
-    rgba(0, 128, 255, 0.3) 75%,
-    rgba(128, 255, 0, 0.3) 100%
-  );
-  animation: rgbGlow 8s infinite alternate cubic-bezier(0.455, 0.03, 0.515, 0.955);
-  mix-blend-mode: overlay;
-  border-radius: 12px;
-}
-
-/* 확장된 카드 컨텐츠 영역 스타일 */
+/* 확장된 카드 컨텐츠 영역 */
 .expanded-card-content {
-  padding: 0 20px 20px;
+  padding: 20px;
 }
 
-/* 확장된 카드 제목 스타일 */
-.expanded-card-title {
-  font-family: 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: 24px;
-  color: var(--card-title-color);
-  margin: 0 0 15px 0;
-  transition: color 0.3s;
-}
-
-/* 확장된 카드 설명 스타일 */
+/* 확장된 카드 설명 */
 .expanded-card-description {
   font-family: 'Inter', sans-serif;
   font-size: 16px;
@@ -503,10 +324,75 @@ onMounted(() => {
   transition: color 0.3s;
 }
 
-/* 확장된 카드 태그 컨테이너 스타일 */
-.expanded-card-tags {
+/* 멤버 수 표시 스타일 */
+.member-count {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: var(--member-count-bg, rgba(255, 255, 255, 0.95));
+  color: var(--member-count-text, #333);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 20;
   display: flex;
-  flex-wrap: wrap; /* 여러 줄로 태그 표시 가능 */
-  gap: 10px;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--member-count-border, rgba(0, 0, 0, 0.1));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+}
+
+.current-members {
+  color: var(--member-current-color, #28a745);
+}
+
+.divider {
+  color: var(--member-divider-color, #666);
+  margin: 0 1px;
+}
+
+.max-members {
+  color: var(--member-max-color, #666);
+}
+
+/* 다크 모드에서 멤버 카운트 스타일 */
+:root.dark .member-count {
+  --member-count-bg: rgba(0, 0, 0, 0.8);
+  --member-count-text: #ffffff;
+  --member-count-border: rgba(255, 255, 255, 0.2);
+  --member-current-color: #4caf50;
+  --member-divider-color: #ffffff;
+  --member-max-color: #ffffff;
+}
+
+/* 지원하기 버튼 스타일 */
+.support-button {
+  padding: 6px 12px;
+  background-color: #3366cc;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: auto;
+  margin-left: auto;
+  display: block;
+  width: fit-content;
+  align-self: flex-end;
+}
+
+.support-button:hover {
+  background-color: #2855aa;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(51, 102, 204, 0.3);
+}
+
+.support-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(51, 102, 204, 0.2);
 }
 </style>

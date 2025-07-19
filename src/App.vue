@@ -1,7 +1,153 @@
+<script lang="ts" setup>
+import { openDiscordLogin } from '@/utils/discordAuth.ts';
+import { usePopUpClosed } from '@/stores/usePopUpClosed.ts';
+import SearchBar from '@/components/SearchBar.vue';
+import ChatSidebar from '@/components/ChatSidebar.vue';
+import ApplicationHistory from '@/components/ApplicationHistory.vue';
+import RecruitmentModal from '@/components/RecruitmentModal.vue';
+import ResumeModal from '@/components/ResumeModal.vue';
+import CustomModal from '@/components/CustomModal.vue';
+import { inject, ref } from 'vue';
+import { customError, useCustomModal } from '@/composables/useCustomModal.ts';
+import type { VueCookies } from 'vue-cookies';
+import { useRoute } from 'vue-router';
+import { useKyProperties } from '@/stores/useKyProperties.ts';
+import { useAuth } from '@/stores/useAuth.ts';
+
+const popUpClosed = usePopUpClosed();
+const showRecruitmentModal = ref(false);
+const showResumeModal = ref(false);
+const searchQuery = ref('');
+const route = useRoute();
+const kyProperties = useKyProperties();
+const auth = useAuth();
+
+// CustomModal 컴포저블 사용
+const { modalState, handleConfirm, handleCancel, handleClose } = useCustomModal();
+const $cookies = inject<VueCookies>('$cookies');
+if (!$cookies) {
+  throw new Error("Failed to inject $cookies. Make sure it is provided in app's context.");
+}
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'popUpClosed' && route.path !== '/pop-up/close') {
+    const newValue = e.newValue ? JSON.parse(e.newValue) : {};
+    if (!newValue.init) {
+      newValue.isPopUp = false;
+      if (newValue.isSucceed) {
+        newValue.isSucceed = false;
+        kyProperties.csrfToken = $cookies.get('csrfToken');
+        $cookies.set('csrfToken', null);
+        kyProperties.refreshToken = $cookies.get('refreshToken');
+        $cookies.set('refreshToken', null);
+      } else {
+        if (newValue.errorMessage) {
+          customError(newValue.errorMessage);
+          newValue.errorMessage = null;
+        }
+      }
+    }
+    popUpClosed.$patch(newValue);
+  }
+});
+
+window.addEventListener('message', (e) => {
+  if (e.origin === 'http://localhost') {
+    auth.updateUserInfo(JSON.parse(e.data));
+    auth.isLoggedIn = true;
+  }
+});
+
+/**
+ * 모집글 모달 닫기
+ */
+const closeRecruitmentModal = () => {
+  showRecruitmentModal.value = false;
+};
+
+/**
+ * 지원서 모달 닫기
+ */
+const closeResumeModal = () => {
+  showResumeModal.value = false;
+};
+</script>
+
 <template>
-  <section class="app">
-    <RouterView />
-  </section>
+  <div class="app">
+    <!-- 헤더 -->
+    <header v-if="!popUpClosed.isPopUp" class="app-header">
+      <div class="header-content">
+        <h1>
+          <router-link class="logo" to="/">메이플 파티</router-link>
+        </h1>
+        <div class="header-center">
+          <button
+            class="recruitment-button"
+            @click="() => (showRecruitmentModal = !showRecruitmentModal)"
+          >
+            모집글 작성
+          </button>
+          <button class="resume-button" @click="() => (showResumeModal = !showResumeModal)">
+            지원서 작성
+          </button>
+        </div>
+        <div class="header-right">
+          <button v-show="!auth.isLoggedIn" class="discord-login-button" @click="openDiscordLogin">
+            <span class="discord-icon"></span>
+            디스코드로 로그인
+          </button>
+          <span v-show="auth.isLoggedIn" class="user-greeting">
+            {{ auth.userInfo.name }}님 안녕하세요.
+          </span>
+          <button v-show="auth.isLoggedIn" class="logout-button" @click="auth.logout">
+            로그아웃
+          </button>
+          <SearchBar v-model="searchQuery" />
+        </div>
+      </div>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <div class="main-layout">
+      <!-- 왼쪽 사이드바 -->
+      <aside v-if="!popUpClosed.isPopUp" class="left-sidebar">
+        <ChatSidebar />
+      </aside>
+
+      <!-- 중앙 컨텐츠 영역 -->
+      <main class="main-content">
+        <RouterView :search-query="searchQuery" />
+      </main>
+
+      <!-- 오른쪽 사이드바 -->
+      <aside v-if="!popUpClosed.isPopUp" class="right-sidebar">
+        <ApplicationHistory />
+      </aside>
+    </div>
+
+    <!-- 푸터 -->
+    <footer v-if="!popUpClosed.isPopUp" class="app-footer">
+      <p>&copy; 2024 메이플 파티. All rights reserved.</p>
+    </footer>
+
+    <RecruitmentModal :show="showRecruitmentModal" @close="closeRecruitmentModal" />
+    <ResumeModal :show="showResumeModal" @close="closeResumeModal" />
+
+    <!-- CustomModal -->
+    <CustomModal
+      :cancel-text="modalState.cancelText"
+      :confirm-text="modalState.confirmText"
+      :icon-type="modalState.iconType"
+      :message="modalState.message"
+      :show="modalState.show"
+      :title="modalState.title"
+      :type="modalState.type"
+      @cancel="handleCancel"
+      @close="handleClose"
+      @confirm="handleConfirm"
+    />
+  </div>
 </template>
 
 <style>
@@ -105,8 +251,288 @@ body {
 
 /* 앱 컨테이너 스타일 */
 .app {
-  min-height: 100vh; /* 최소 높이를 뷰포트 높이로 설정 */
-  max-width: 1440px; /* 최대 너비 제한 */
-  margin: 0 auto; /* 가운데 정렬 */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.5s ease;
+}
+
+/* 헤더 스타일 */
+.app-header {
+  background-color: var(--header-bg-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  position: relative;
+}
+
+.header-content {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  max-width: 85vw;
+  margin: 0 auto;
+  padding: 0 2vw;
+  gap: 1vw;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  justify-self: center;
+}
+
+.logo {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  color: var(--logo-color, orange);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  justify-self: end;
+}
+
+.recruitment-button,
+.resume-button,
+.discord-login-button {
+  padding: 0.6vw 1.2vw;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9vw;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5vw;
+  min-font-size: 12px;
+}
+
+.recruitment-button {
+  background-color: #007bff;
+  color: white;
+}
+
+.recruitment-button:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.resume-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.resume-button:hover {
+  background-color: #218838;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.discord-login-button {
+  background-color: #5865f2;
+  color: white;
+}
+
+.discord-login-button:hover {
+  background-color: #4752c4;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+}
+
+.discord-login-button:active {
+  transform: translateY(0);
+}
+
+.discord-icon {
+  background-image: url('/images/Discord-Symbol-White.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+}
+
+.user-greeting {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+  white-space: nowrap;
+}
+
+.logout-button {
+  padding: 0.6vw 1.2vw;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9vw;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  background-color: #dc3545;
+  color: white;
+  min-font-size: 12px;
+}
+
+.logout-button:hover {
+  background-color: #c82333;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+/* 메인 레이아웃 */
+.main-layout {
+  display: flex;
+  flex: 1;
+  max-width: 85vw;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 왼쪽 사이드바 */
+.left-sidebar {
+  width: 20vw;
+  min-width: 300px;
+  padding: 20px;
+  background-color: var(--bg-color);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  height: calc(100vh - 80px);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 메인 컨텐츠 */
+.main-content {
+  flex: 1;
+  padding: 20px;
+  background-color: var(--bg-color);
+  overflow-y: auto;
+  height: calc(100vh - 80px);
+}
+
+/* 오른쪽 사이드바 */
+.right-sidebar {
+  width: 20vw;
+  min-width: 300px;
+  padding: 20px;
+  background-color: var(--bg-color);
+  border-left: 1px solid var(--border-color);
+  overflow-y: auto;
+  height: calc(100vh - 80px);
+}
+
+/* 푸터 */
+.app-footer {
+  background-color: var(--header-bg-color);
+  border-top: 1px solid var(--border-color);
+  padding: 20px 0;
+  text-align: center;
+  color: var(--text-color);
+}
+
+.app-footer p {
+  max-width: 60vw;
+  margin: 0 auto;
+  font-size: 14px;
+}
+
+/* 16:9 비율 최적화 */
+@media (min-aspect-ratio: 16/9) {
+  .header-content {
+    max-width: 90vw;
+  }
+
+  .main-layout {
+    max-width: 90vw;
+  }
+
+  .recruitment-button,
+  .resume-button,
+  .discord-login-button,
+  .logout-button {
+    font-size: clamp(12px, 0.8vw, 16px);
+    padding: clamp(6px, 0.5vw, 10px) clamp(12px, 1vw, 18px);
+  }
+}
+
+/* 작은 화면 최적화 */
+@media (max-width: 1440px) {
+  .header-content {
+    max-width: 95vw;
+    padding: 0 1vw;
+  }
+
+  .main-layout {
+    max-width: 95vw;
+  }
+
+  .recruitment-button,
+  .resume-button,
+  .discord-login-button,
+  .logout-button {
+    font-size: clamp(11px, 1vw, 14px);
+    padding: clamp(5px, 0.6vw, 8px) clamp(10px, 1.2vw, 16px);
+  }
+}
+
+@media (max-width: 1024px) {
+  .left-sidebar {
+    display: none;
+  }
+
+  .main-layout {
+    flex-direction: column;
+  }
+
+  .right-sidebar {
+    width: 100%;
+    height: auto;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+  }
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    gap: 15px;
+    padding: 15px 20px;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .recruitment-button,
+  .resume-button,
+  .discord-login-button,
+  .logout-button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .right-sidebar {
+    display: none;
+  }
+
+  .main-content {
+    padding: 15px;
+  }
 }
 </style>

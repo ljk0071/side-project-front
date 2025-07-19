@@ -4,8 +4,8 @@ import { ref } from 'vue';
 export const useKyProperties = defineStore(
   'kyProperties',
   () => {
-    const csrfToken = ref('');
-    const refreshToken = ref('');
+    const csrfToken = ref<string | null>('');
+    const refreshToken = ref<string | null>('');
 
     return { csrfToken, refreshToken };
   },
