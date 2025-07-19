@@ -13,6 +13,7 @@ import type { VueCookies } from 'vue-cookies';
 import { useRoute } from 'vue-router';
 import { useKyProperties } from '@/stores/useKyProperties.ts';
 import { useAuth } from '@/stores/useAuth.ts';
+import { useNotFound } from '@/stores/useNotFound.ts';
 
 const popUpClosed = usePopUpClosed();
 const showRecruitmentModal = ref(false);
@@ -36,10 +37,10 @@ window.addEventListener('storage', (e) => {
       newValue.isPopUp = false;
       if (newValue.isSucceed) {
         newValue.isSucceed = false;
-        kyProperties.csrfToken = $cookies.get('csrfToken');
-        $cookies.set('csrfToken', null);
-        kyProperties.refreshToken = $cookies.get('refreshToken');
-        $cookies.set('refreshToken', null);
+        kyProperties.csrfToken = $cookies.get('X-CSRF-TOKEN');
+        $cookies.set('X-CSRF-TOKEN', null);
+        kyProperties.refreshToken = $cookies.get('REFRESH_TOKEN');
+        $cookies.set('REFRESH_TOKEN', null);
       } else {
         if (newValue.errorMessage) {
           customError(newValue.errorMessage);
@@ -71,12 +72,14 @@ const closeRecruitmentModal = () => {
 const closeResumeModal = () => {
   showResumeModal.value = false;
 };
+
+const notFound = useNotFound();
 </script>
 
 <template>
   <div class="app">
     <!-- 헤더 -->
-    <header v-if="!popUpClosed.isPopUp" class="app-header">
+    <header v-if="!popUpClosed.isPopUp && !notFound.is404" class="app-header">
       <div class="header-content">
         <h1>
           <router-link class="logo" to="/">메이플 파티</router-link>
@@ -111,7 +114,7 @@ const closeResumeModal = () => {
     <!-- 메인 컨텐츠 영역 -->
     <div class="main-layout">
       <!-- 왼쪽 사이드바 -->
-      <aside v-if="!popUpClosed.isPopUp" class="left-sidebar">
+      <aside v-if="!popUpClosed.isPopUp && !notFound.is404" class="left-sidebar">
         <ChatSidebar />
       </aside>
 
@@ -121,7 +124,7 @@ const closeResumeModal = () => {
       </main>
 
       <!-- 오른쪽 사이드바 -->
-      <aside v-if="!popUpClosed.isPopUp" class="right-sidebar">
+      <aside v-if="!popUpClosed.isPopUp && !notFound.is404" class="right-sidebar">
         <ApplicationHistory />
       </aside>
     </div>
@@ -155,7 +158,7 @@ const closeResumeModal = () => {
  * 글로벌 스타일 정의
  *
  * 이 파일에서는 앱 전체에서 사용되는 CSS 변수와 기본 스타일을 정의합니다.
- * 라이트 모드와 다크 모드에 대한 테마 색상이 모두 포함되어 있습니다.
+ * 라이트 모드와 다크 모드에 !대한 테마 색상이 모두 !포함되어 있습니다.
  */
 
 /* Inter 글꼴 가져오기 */
@@ -179,7 +182,7 @@ const closeResumeModal = () => {
   --close-button-color: #333333;
   --close-button-bg: rgba(0, 0, 0, 0.1);
   --close-button-hover-bg: rgba(0, 0, 0, 0.2);
-  --close-button-border: rgba(0, 0, 0, 0.15);
+  --close-button-bordr: rgba(0, 0, 0, 0.15);
 
   /* 오버레이 색상 */
   --overlay-bg-color: rgba(0, 0, 0, 0.7);
@@ -188,7 +191,7 @@ const closeResumeModal = () => {
   --tag1-bg-color: rgba(51, 102, 204, 0.1);
   --tag1-text-color: #3366cc;
   --tag2-bg-color: rgba(51, 153, 102, 0.1);
-  --tag2-text-color: #339966;
+  --tag2-text-color: #33996;
 
   /* 필터 관련 색상 */
   --filter-label-color: #4d4d4d;
