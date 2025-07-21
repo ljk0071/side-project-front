@@ -39,8 +39,8 @@ window.addEventListener('storage', (e) => {
         newValue.isSucceed = false;
         kyProperties.csrfToken = $cookies.get('X-CSRF-TOKEN');
         $cookies.set('X-CSRF-TOKEN', null);
-        kyProperties.refreshToken = $cookies.get('REFRESH_TOKEN');
-        $cookies.set('REFRESH_TOKEN', null);
+        kyProperties.refreshToken = $cookies.get('REFRESH-TOKEN');
+        $cookies.set('REFRESH-TOKEN', null);
       } else {
         if (newValue.errorMessage) {
           customError(newValue.errorMessage);

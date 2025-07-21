@@ -119,6 +119,11 @@ onMounted(() => {
     },
     { passive: true },
   );
+  useEventListener(document, 'keydown', (event) => {
+    if (event.key === 'Escape') {
+      isExpanded.value = false;
+    }
+  });
 });
 </script>
 
