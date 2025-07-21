@@ -5,10 +5,11 @@
  * 지원서 작성을 위한 모달 컴포넌트입니다.
  * 사용자가 지원서 내용을 입력하고 제출할 수 있는 기능을 제공합니다.
  */
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useAuth } from '@/stores/useAuth';
 import { customWarning, useCustomModal } from '@/composables/useCustomModal.ts';
 import { openDiscordLogin } from '@/utils/discordAuth.ts';
+import { useEventListener } from '@vueuse/core';
 
 // 컴포넌트 프롭스 정의
 interface Props {
@@ -74,6 +75,14 @@ const handleOverlayClick = (event: MouseEvent) => {
     closeModal();
   }
 };
+
+onMounted(() => {
+  useEventListener(document, 'keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  });
+});
 </script>
 
 <template>

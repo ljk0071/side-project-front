@@ -5,10 +5,11 @@
  * 모집글 작성을 위한 모달 컴포넌트입니다.
  * 사용자가 모집글 제목과 내용을 입력하고 제출할 수 있는 기능을 제공합니다.
  */
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useAuth } from '@/stores/useAuth';
-import { customAlert, useCustomModal } from '@/composables/useCustomModal.ts';
-import { openDiscordLogin } from '@/utils/discordAuth.ts';
+import { customAlert } from '@/composables/useCustomModal.ts';
+import { kyWithCustom } from '@/utils/ky/kyWithCustom.ts';
+import { useEventListener } from '@vueuse/core';
 
 // 컴포넌트 프롭스 정의
 interface Props {
@@ -27,7 +28,6 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const auth = useAuth();
-const { customConfirm } = useCustomModal();
 
 /** 모집글 내용 */
 const recruitmentContent = ref('');
@@ -44,30 +44,23 @@ const closeModal = () => {
  * 모집글 제출
  */
 const submitRecruitment = async () => {
-  if (recruitmentContent.value.trim()) {
-    emit('submit', {
-      content: recruitmentContent.value,
-    });
-    recruitmentContent.value = '';
-  } else {
+  if (!recruitmentContent.value.trim()) {
     await customAlert('내용을 입력해주세요.');
     return;
   }
 
-  if (!auth.isAuthenticated) {
-    const confirmed = await customConfirm({
-      title: '로그인 필요',
-      message: '디코로 3초면 끝남.\n지금 바로 등록 ㄱㄱ',
-      confirmText: '네',
-      cancelText: '아니요',
-      iconType: 'info',
-    });
-
-    if (confirmed) {
-      openDiscordLogin();
-    }
+  if (!(await auth.checkSignIn())) {
     return;
   }
+
+  await kyWithCustom('post', 'v1/party', {
+    article: {
+      contents: recruitmentContent.value,
+    },
+  });
+
+  recruitmentContent.value = '';
+  closeModal();
 };
 
 /**
@@ -78,6 +71,14 @@ const handleOverlayClick = (event: MouseEvent) => {
     closeModal();
   }
 };
+
+onMounted(() => {
+  useEventListener(document, 'keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  });
+});
 </script>
 
 <template>

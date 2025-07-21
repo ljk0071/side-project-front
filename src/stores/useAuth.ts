@@ -2,6 +2,8 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { kyWithCustom } from '@/utils/ky/kyWithCustom.ts';
 import { useKyProperties } from './useKyProperties.ts';
+import { openDiscordLogin } from '@/utils/discordAuth.ts';
+import { customConfirm } from '@/composables/useCustomModal.ts';
 
 export interface UserInfo {
   name: string | null;
@@ -77,6 +79,26 @@ export const useAuth = defineStore(
       loginError.value = '';
     };
 
+    const checkSignIn = async () => {
+      if (!isAuthenticated.value) {
+        const confirmed = await customConfirm({
+          title: '로그인 필요',
+          message: '디코로 3초면 끝남.\n지금 바로 등록 ㄱㄱ',
+          confirmText: '네',
+          cancelText: '아니요',
+          iconType: 'info',
+        });
+
+        if (confirmed) {
+          openDiscordLogin();
+        }
+
+        return false;
+      }
+
+      return true;
+    };
+
     return {
       userInfo,
       isLoggedIn,
@@ -87,6 +109,7 @@ export const useAuth = defineStore(
       logout,
       clearError,
       updateUserInfo,
+      checkSignIn,
     };
   },
   {
