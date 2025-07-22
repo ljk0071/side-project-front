@@ -1,30 +1,31 @@
 <script lang="ts" setup>
-import { openDiscordLogin } from '@/utils/discordAuth.ts';
-import { usePopUpClosed } from '@/stores/usePopUpClosed.ts';
+import {openDiscordLogin} from '@/utils/discordAuth.ts';
+import {usePopUpClosed} from '@/stores/usePopUpClosed.ts';
 import SearchBar from '@/components/SearchBar.vue';
 import ChatSidebar from '@/components/ChatSidebar.vue';
 import ApplicationHistory from '@/components/ApplicationHistory.vue';
 import RecruitmentModal from '@/components/RecruitmentModal.vue';
 import ResumeModal from '@/components/ResumeModal.vue';
 import CustomModal from '@/components/CustomModal.vue';
-import { inject, ref } from 'vue';
-import { customError, useCustomModal } from '@/composables/useCustomModal.ts';
-import type { VueCookies } from 'vue-cookies';
-import { useRoute } from 'vue-router';
-import { useKyProperties } from '@/stores/useKyProperties.ts';
-import { useAuth } from '@/stores/useAuth.ts';
-import { useNotFound } from '@/stores/useNotFound.ts';
+import {inject, ref} from 'vue';
+import {customError, useCustomModal} from '@/composables/useCustomModal.ts';
+import type {VueCookies} from 'vue-cookies';
+import {useRoute} from 'vue-router';
+import {useKyProperties} from '@/stores/useKyProperties.ts';
+import {useAuth} from '@/stores/useAuth.ts';
+import {useNotFound} from '@/stores/useNotFound.ts';
 
 const popUpClosed = usePopUpClosed();
 const showRecruitmentModal = ref(false);
 const showResumeModal = ref(false);
 const searchQuery = ref('');
+const searchEnterTrigger = ref(0);
 const route = useRoute();
 const kyProperties = useKyProperties();
 const auth = useAuth();
 
 // CustomModal 컴포저블 사용
-const { modalState, handleConfirm, handleCancel, handleClose } = useCustomModal();
+const {modalState, handleConfirm, handleCancel, handleClose} = useCustomModal();
 const $cookies = inject<VueCookies>('$cookies');
 if (!$cookies) {
   throw new Error("Failed to inject $cookies. Make sure it is provided in app's context.");
@@ -74,6 +75,14 @@ const closeResumeModal = () => {
 };
 
 const notFound = useNotFound();
+
+/**
+ * SearchBar에서 엔터 키가 눌렸을 때 즉시 검색을 실행하는 핸들러
+ */
+const handleSearchEnter = () => {
+  // 트리거 값을 증가시켜 즉시 검색 실행을 알림
+  searchEnterTrigger.value++;
+};
 </script>
 
 <template>
@@ -106,7 +115,7 @@ const notFound = useNotFound();
           <button v-show="auth.isLoggedIn" class="logout-button" @click="auth.logout">
             로그아웃
           </button>
-          <SearchBar v-model="searchQuery" />
+          <SearchBar v-model="searchQuery" @enter="handleSearchEnter"/>
         </div>
       </div>
     </header>
@@ -115,17 +124,17 @@ const notFound = useNotFound();
     <div class="main-layout">
       <!-- 왼쪽 사이드바 -->
       <aside v-if="!popUpClosed.isPopUp && !notFound.is404" class="left-sidebar">
-        <ChatSidebar />
+        <ChatSidebar/>
       </aside>
 
       <!-- 중앙 컨텐츠 영역 -->
       <main class="main-content">
-        <RouterView :search-query="searchQuery" />
+        <RouterView :search-query="searchQuery" :search-enter-trigger="searchEnterTrigger"/>
       </main>
 
       <!-- 오른쪽 사이드바 -->
       <aside v-if="!popUpClosed.isPopUp && !notFound.is404" class="right-sidebar">
-        <ApplicationHistory />
+        <ApplicationHistory/>
       </aside>
     </div>
 
@@ -134,8 +143,8 @@ const notFound = useNotFound();
       <p>&copy; 2024 메이플 파티. All rights reserved.</p>
     </footer>
 
-    <RecruitmentModal :show="showRecruitmentModal" @close="closeRecruitmentModal" />
-    <ResumeModal :show="showResumeModal" @close="closeResumeModal" />
+    <RecruitmentModal :show="showRecruitmentModal" @close="closeRecruitmentModal"/>
+    <ResumeModal :show="showResumeModal" @close="closeResumeModal"/>
 
     <!-- CustomModal -->
     <CustomModal
@@ -404,6 +413,7 @@ body {
   max-width: 85vw;
   margin: 0 auto;
   width: 100%;
+  min-height: calc(100vh - 63px);
 }
 
 /* 왼쪽 사이드바 */
@@ -424,8 +434,10 @@ body {
   flex: 1;
   padding: 20px;
   background-color: var(--bg-color);
-  overflow-y: auto;
+  overflow-y: hidden; /* 스크롤 제거 */
   height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
 }
 
 /* 오른쪽 사이드바 */

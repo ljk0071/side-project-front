@@ -5,27 +5,39 @@
  * 이 컴포넌트는 파티/이벤트 카드를 보여주며, 마우스 움직임에 따른 틸트 효과를
  * 제공합니다. vueuse/core의 useMouseInElement를 활용하여 인터랙티브한 UI 경험을 제공합니다.
  */
-import { useEventListener, useMouseInElement } from '@vueuse/core';
-import { computed, onMounted, ref } from 'vue';
-import { useCustomModal } from '@/composables/useCustomModal.ts';
+import {useEventListener, useMouseInElement} from '@vueuse/core';
+import {computed, onMounted, ref} from 'vue';
+import {useCustomModal} from '@/composables/useCustomModal.ts';
+
+/**
+ * Party 타입 정의
+ * PartyCard 컴포넌트의 props와 동일한 구조를 가진 타입입니다.
+ */
+export type Party = {
+  /** 파티의 고유 ID */
+  id: number;
+  /** 파티의 설명 텍스트 */
+  article: Article;
+  /** 현재 멤버 수 */
+  currentMembers: number;
+};
+
+export type Article = {
+  title: string;
+  contents: string;
+};
 
 // 컴포넌트 프롭스 정의
 const props = defineProps<{
-  /** 카드의 제목 */
-  title: string;
-  /** 카드의 설명 텍스트 */
-  description: string;
-  /** 카드에 표시될 태그 배열 */
-  tags: string[];
-  /** 카드 이미지 배경 색상 */
-  imageColor: string;
+  /** 파티의 설명 텍스트 */
+  id: number;
+  /** 파티의 설명 텍스트 */
+  contents: string;
   /** 현재 멤버 수 */
   currentMembers: number;
-  /** 최대 멤버 수 */
-  maxMembers: number;
 }>();
 
-const { customConfirm, customSuccess } = useCustomModal();
+const {customSuccess} = useCustomModal();
 
 // 상태 관리를 위한 ref 변수들
 /** 카드가 확장된 상태인지 여부를 저장 */
@@ -35,7 +47,7 @@ const cardTilt = ref<HTMLDivElement | null>(null);
 /** 확장된 카드에 대한 DOM 참조 */
 const expandedCardRef = ref<HTMLDivElement | null>(null);
 /** 마우스 위치 및 요소 관련 데이터를 추적하는 vueuse의 훅 */
-const { elementX, elementY, isOutside, elementHeight, elementWidth } = useMouseInElement(cardTilt);
+const {elementX, elementY, isOutside, elementHeight, elementWidth} = useMouseInElement(cardTilt);
 
 /**
  * 카드의 틸트 효과를 위한 스타일 계산
@@ -87,10 +99,10 @@ const expandedCardStyle = computed(() => {
 });
 
 /**
- * description 일부분만 보여주는 계산된 속성
+ * contents 일부분만 보여주는 계산된 속성
  */
 const truncatedDescription = computed(() => {
-  const lines = props.description.split('\n');
+  const lines = props.contents.split('\n');
   return lines.slice(0, 5).join('\n');
 });
 
@@ -117,7 +129,7 @@ onMounted(() => {
         isExpanded.value = false;
       }
     },
-    { passive: true },
+    {passive: true},
   );
   useEventListener(document, 'keydown', (event) => {
     if (event.key === 'Escape') {
@@ -141,9 +153,7 @@ onMounted(() => {
       ></div>
       <!-- 멤버 수 표시 -->
       <div class="member-count">
-        <span class="current-members">{{ currentMembers }}</span>
-        <span class="divider">/</span>
-        <span class="max-members">{{ maxMembers }}</span>
+        <span class="current-members">현재: {{ currentMembers }} 명</span>
       </div>
 
       <!-- 카드 컨텐츠 영역 -->
@@ -164,7 +174,7 @@ onMounted(() => {
       </button>
       <!-- 확장된 카드 컨텐츠 영역 -->
       <div class="expanded-card-content">
-        <p class="expanded-card-description" v-html="description.replace(/\n/g, '<br>')"></p>
+        <p class="expanded-card-description" v-html="contents.replace(/\n/g, '<br>')"></p>
         <button class="support-button" @click="handleSupport">지원하기</button>
       </div>
     </div>
@@ -191,9 +201,8 @@ onMounted(() => {
   transform-style: preserve-3d; /* 3D 효과를 위한 설정 */
   position: relative;
   z-index: 1;
-  transition:
-    background-color 0.3s,
-    border-color 0.3s;
+  transition: background-color 0.3s,
+  border-color 0.3s;
 }
 
 .card:hover {
@@ -251,9 +260,8 @@ onMounted(() => {
   z-index: 100;
   opacity: 0;
   visibility: hidden;
-  transition:
-    opacity 0.3s ease,
-    visibility 0.3s ease;
+  transition: opacity 0.3s ease,
+  visibility 0.3s ease;
 }
 
 .overlay.active {
@@ -276,10 +284,9 @@ onMounted(() => {
   z-index: 200;
   padding: 20px;
   overflow-y: auto;
-  transition:
-    transform 0.3s ease,
-    opacity 0.3s ease,
-    visibility 0.3s ease;
+  transition: transform 0.3s ease,
+  opacity 0.3s ease,
+  visibility 0.3s ease;
 }
 
 .expanded-card[style*='visible'] {
@@ -358,10 +365,6 @@ onMounted(() => {
   margin: 0 1px;
 }
 
-.max-members {
-  color: var(--member-max-color, #666);
-}
-
 /* 다크 모드에서 멤버 카운트 스타일 */
 :root.dark .member-count {
   --member-count-bg: rgba(0, 0, 0, 0.8);
@@ -374,12 +377,12 @@ onMounted(() => {
 
 /* 지원하기 버튼 스타일 */
 .support-button {
-  padding: 6px 12px;
+  padding: 10px 20px;
   background-color: #3366cc;
   color: white;
   border: none;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;

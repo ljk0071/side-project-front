@@ -6,7 +6,7 @@
  * v-model을 통한 양방향 바인딩을 지원하며, 포커스 상태에 따른 스타일 변화와
  * 외부에서의 포커스 설정을 위한 메소드를 노출합니다.
  */
-import { computed, ref } from 'vue';
+import {ref, watch} from 'vue';
 
 // 컴포넌트 프롭스 정의
 const props = defineProps<{
@@ -18,16 +18,57 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** v-model 업데이트 이벤트 */
   (e: 'update:modelValue', value: string): void;
+  /** 엔터 키 입력 이벤트 */
+  (e: 'enter', value: string): void;
 }>();
 
 /**
- * v-model 양방향 바인딩을 위한 계산된 속성
- * 부모 컴포넌트의 modelValue와 동기화됩니다.
+ * 내부 검색어 상태
  */
-const searchValue = computed({
-  get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value),
+const searchValue = ref(props.modelValue);
+
+/**
+ * props.modelValue 변경 시 내부 상태 동기화
+ */
+watch(() => props.modelValue, (newValue) => {
+  if (searchValue.value !== newValue) {
+    searchValue.value = newValue;
+  }
 });
+
+/**
+ * 한국어 완성 문자 여부를 확인하는 함수
+ * 자음만 있거나 모음만 있는 경우를 제외하고 완성된 문자인지 확인
+ */
+const isKoreanCompleteChar = (char: string): boolean => {
+  const code = char.charCodeAt(0);
+  // 한글 완성형 문자 범위 (가-힣): 44032 ~ 55203
+  return code >= 44032 && code <= 55203;
+};
+
+/**
+ * 문자열이 검색 가능한 상태인지 확인
+ * 한국어의 경우 완성된 문자가 있거나, 영어/숫자/기타 문자인 경우 true
+ */
+const isSearchableString = (value: string): boolean => {
+  if (!value.trim()) return true; // 빈 문자열은 허용
+  
+  // 마지막 문자가 한국어인 경우
+  const lastChar = value.charAt(value.length - 1);
+  const lastCharCode = lastChar.charCodeAt(0);
+  
+  // 한국어 자음 (ㄱ-ㅎ): 12593 ~ 12622
+  // 한국어 모음 (ㅏ-ㅣ): 12623 ~ 12643
+  const isKoreanConsonant = lastCharCode >= 12593 && lastCharCode <= 12622;
+  const isKoreanVowel = lastCharCode >= 12623 && lastCharCode <= 12643;
+  
+  // 마지막 문자가 자음이나 모음만 있다면 false (미완성)
+  if (isKoreanConsonant || isKoreanVowel) {
+    return false;
+  }
+  
+  return true;
+};
 
 /** 입력 필드에 대한 참조 */
 const inputRef = ref<HTMLInputElement | null>(null);
@@ -56,6 +97,30 @@ const handleBlur = () => {
   isFocused.value = false;
 };
 
+/**
+ * 입력 처리 (한국어 완성 문자 체크)
+ */
+const handleInput = (target: HTMLInputElement) => {
+  const newValue = target.value;
+  searchValue.value = newValue;
+  
+  // 검색 가능한 상태일 때만 emit
+  if (isSearchableString(newValue)) {
+    emit('update:modelValue', newValue);
+  }
+};
+
+/**
+ * 엔터 키 입력 처리
+ */
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') {
+    // 엔터 키를 누르면 현재 값이 미완성이라도 검색 실행
+    emit('update:modelValue', searchValue.value);
+    emit('enter', searchValue.value);
+  }
+};
+
 // 외부에서 접근 가능한 메소드 노출
 defineExpose({
   focus,
@@ -68,12 +133,14 @@ defineExpose({
     <!-- 검색 입력 필드 -->
     <input
       ref="inputRef"
-      v-model="searchValue"
+      :value="searchValue"
       class="search-input"
       placeholder="파티 검색..."
       type="text"
       @blur="handleBlur"
       @focus="handleFocus"
+      @keydown="handleKeydown"
+      @input="handleInput($event.target as HTMLInputElement)"
     />
   </div>
 </template>

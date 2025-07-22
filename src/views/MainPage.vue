@@ -5,26 +5,28 @@
  * 애플리케이션의 메인 페이지를 구성하는 뷰 컴포넌트입니다.
  * 검색 기능, 필터링, 다크 모드 토글 등 주요 기능들을 포함하고 있습니다.
  */
-import { computed, ref } from 'vue';
-import { useDark, useToggle } from '@vueuse/core';
-import CardList from '@/components/CardList.vue';
+import {computed, ref} from 'vue';
+import {useDark, useToggle} from '@vueuse/core';
+import PartyList from '@/components/PartyCardList.vue';
 
 // 프롭스 정의
 const props = defineProps<{
   /** 검색어 (App.vue에서 전달받음) */
   searchQuery?: string;
+  /** 엔터 키 즉시 검색 트리거 */
+  searchEnterTrigger?: number;
 }>();
 
 // 상태 관리를 위한 ref 변수들
 /** 현재 검색어 */
 const searchQuery = computed(() => props.searchQuery || '');
 /** 선택된 필터 배열 (기본값: '전체') */
-const selectedFilter = ref(['전체']);
+const selectedFilter = ref(['ALL']);
 /** 첫 방문 시 정보 텍스트 표시 여부 */
 const showInfoText = ref(false);
 
 /** 다크 모드 상태 (vueuse의 useDark 훅 사용) */
-const isDark = useDark({ disableTransition: false });
+const isDark = useDark({disableTransition: true});
 /** 다크 모드 토글 함수 */
 const toggleDark = useToggle(isDark);
 /** 사용자 상호작용 여부 (애니메이션 효과에 사용) */
@@ -60,7 +62,7 @@ const handleToggleDark = () => {
       <div :class="{ dark: isDark, animated: hasInteracted }" class="toggle-track">
         <div :class="{ dark: isDark, animated: hasInteracted }" class="toggle-indicator">
           <span v-if="!isDark" :class="{ animated: hasInteracted }" class="toggle-icon sun"
-            >☀️</span
+          >☀️</span
           >
           <span v-else :class="{ animated: hasInteracted }" class="toggle-icon moon">🌙</span>
         </div>
@@ -69,7 +71,7 @@ const handleToggleDark = () => {
   </div>
 
   <!-- 카드 목록 영역 - 검색어와 필터 전달 -->
-  <CardList :search-query="searchQuery" :selected-filter="selectedFilter" />
+  <PartyList :search-query="searchQuery" :selected-filter="selectedFilter" :search-enter-trigger="searchEnterTrigger"/>
 </template>
 
 <style scoped>
