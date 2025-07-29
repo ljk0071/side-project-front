@@ -1,8 +1,9 @@
-import ky, { type Options } from 'ky';
+import ky, { type Options, type SearchParamsOption } from 'ky';
 import type { JsonValue } from 'type-fest';
 import type { HttpMethod } from '@/utils/ky/type/httpMethod';
 import { useKyProperties } from '@/stores/useKyProperties.ts';
-import { customError, customSuccess } from '@/composables/useCustomModal.ts';
+import { customError, customSuccess, customWarning } from '@/composables/useCustomModal.ts';
+import { openDiscordLogin } from '@/utils/discordAuth.ts';
 
 async function supportsDuplex(): Promise<boolean> {
   try {
@@ -78,58 +79,38 @@ function createKyWithBasicOptions() {
     hooks: {
       beforeError: [
         async (error) => {
-          if (error.response?.status === 401) {
-            const result = await kyWithCustom(
-              'post',
-              'api/auth/refresh',
-              {},
-              {
-                headers: {
-                  'X-CSRF-TOKEN': kyProperties.csrfToken ?? '',
-                  'REFRESH-TOKEN': kyProperties.refreshToken ?? '',
-                },
-              },
-            ).json<{
-              csrfToken: string;
-              refreshToken: string;
-            }>();
-
-            kyProperties.csrfToken = result.csrfToken;
-            kyProperties.refreshToken = result.refreshToken;
-          } else {
-            // 에러 응답에서 JSON 메시지 추출
-            try {
-              // 1. response가 존재하는지 확인
-              if (!error.response) {
-                await customError('네트워크 오류가 발생했습니다.');
-                return error;
-              }
-
-              // 2. Content-Type 확인 (선택적)
-              const contentType = error.response.headers.get('content-type');
-              if (!contentType?.includes('application/json')) {
-                await customError('서버에서 예상치 못한 응답을 받았습니다.');
-                return error;
-              }
-
-              // 3. body가 있는지 확인
-              if (!error.response.body) {
-                await customError('서버 응답이 비어있습니다.');
-                return error;
-              }
-
-              // 4. JSON 파싱 시도
-              const errorData = (await error.response.json()) as { message?: string };
-
-              if (errorData?.message) {
-                await customError(errorData.message);
-              } else {
-                await customError('알 수 없는 오류가 발생했습니다.');
-              }
-            } catch (parseError) {
-              console.error('에러 응답 파싱 실패:', parseError);
-              await customError('서버 응답을 처리하는 중 오류가 발생했습니다.');
+          // 에러 응답에서 JSON 메시지 추출
+          try {
+            // 1. response가 존재하는지 확인
+            if (!error.response) {
+              await customError('네트워크 오류가 발생했습니다.');
+              return error;
             }
+
+            // 2. Content-Type 확인 (선택적)
+            const contentType = error.response.headers.get('content-type');
+            if (!contentType?.includes('application/json')) {
+              await customError('서버에서 예상치 못한 응답을 받았습니다.');
+              return error;
+            }
+
+            // 3. body가 있는지 확인
+            if (!error.response.body) {
+              await customError('서버 응답이 비어있습니다.');
+              return error;
+            }
+
+            // 4. JSON 파싱 시도
+            const errorData = (await error.response.json()) as { message?: string };
+
+            if (errorData?.message) {
+              await customError(errorData.message);
+            } else {
+              await customError('알 수 없는 오류가 발생했습니다.');
+            }
+          } catch (parseError) {
+            console.error('에러 응답 파싱 실패:', parseError);
+            await customError('서버 응답을 처리하는 중 오류가 발생했습니다.');
           }
 
           // 다른 에러는 그대로 throw
@@ -138,34 +119,59 @@ function createKyWithBasicOptions() {
       ],
       afterResponse: [
         async (request, options, response) => {
+          if (response.status === 401) {
+            if (response.headers.get('RTR') === 'Y') {
+              const result = await kyWithCustom(
+                'post',
+                'api/auth/refresh',
+                {},
+                {
+                  headers: {
+                    'X-CSRF-TOKEN': kyProperties.csrfToken ?? '',
+                    'REFRESH-TOKEN': kyProperties.refreshToken ?? '',
+                  },
+                },
+              ).json<{
+                csrfToken: string;
+                refreshToken: string;
+              }>();
+
+              kyProperties.csrfToken = result.csrfToken;
+              kyProperties.refreshToken = result.refreshToken;
+
+              const newKy = ky.create({
+                headers: {
+                  'X-CSRF-TOKEN': kyProperties.csrfToken ?? '',
+                  'REFRESH-TOKEN': kyProperties.refreshToken ?? '',
+                },
+              });
+
+              return kyWithCustom(
+                request.method,
+                request.url.replace('http://localhost:8080/', ''),
+                await request.json(),
+                options,
+              );
+            } else {
+              await customWarning('로그인 후 진행 해 주세요.', '로그인 필요');
+              openDiscordLogin();
+              return;
+            }
+          }
+
           try {
-            // 1. response가 존재하는지 확인
-            if (!response) {
-              return response;
+            if (response.status >= 200 && response.status < 300) {
+              const contentType = response.headers.get('content-type');
+              if (contentType?.includes('application/json')) {
+                const clonedResponse = response.clone();
+                const responseData = (await clonedResponse.json()) as { message?: string };
+                if (responseData?.message) {
+                  customSuccess(responseData.message);
+                }
+              }
             }
-
-            // 2. Content-Type 확인 (선택적)
-            const contentType = response.headers.get('content-type');
-            if (!contentType?.includes('application/json')) {
-              return response; // JSON이 아니면 성공 메시지 표시하지 않음
-            }
-
-            // 3. body가 있는지 확인
-            if (!response.body) {
-              return response; // body가 없으면 성공 메시지 표시하지 않음
-            }
-
-            // 4. JSON 파싱 시도
-            const responseData = (await response.json()) as { message?: string; data?: unknown };
-
-            if (responseData?.message) {
-              await customSuccess(responseData.message);
-            }
-
-            return responseData;
           } catch (parseError) {
             console.error('성공 응답 파싱 실패:', parseError);
-            // 성공 응답 파싱 실패는 에러로 처리하지 않고 그냥 넘어감
           }
 
           return response;
@@ -206,7 +212,7 @@ const kyWithCustom = (
     if (method === 'get' || method === 'delete') {
       customOptions = { ...options, searchParams: data };
     } else {
-      customOptions = { ...options, json: data, searchParams: data };
+      customOptions = { ...options, json: data };
     }
   }
 

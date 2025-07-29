@@ -39,6 +39,18 @@ const modalState = ref<ModalState>({
   message: '',
 });
 
+// 토스트 알림 상태
+interface ToastState {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  show: boolean;
+}
+
+const toasts = ref<ToastState[]>([]);
+
+let toastIdCounter = 0;
+
 // 모달 이벤트 핸들러
 const handleConfirm = () => {
   if (modalState.value.resolve) {
@@ -101,13 +113,38 @@ export const customConfirm = (options: ConfirmOptions | string): Promise<boolean
   });
 };
 
-// 성공 메시지 alert
-export const customSuccess = (message: string, title?: string): Promise<boolean> => {
-  return customAlert({
-    title: title || '성공',
+// 토스트 알림 함수
+const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info', duration = 3000) => {
+  const id = `toast-${++toastIdCounter}`;
+  const toast: ToastState = {
+    id,
     message,
-    iconType: 'success',
-  });
+    type,
+    show: true,
+  };
+  
+  toasts.value.push(toast);
+  
+  // 자동으로 사라지게 설정
+  setTimeout(() => {
+    removeToast(id);
+  }, duration);
+};
+
+const removeToast = (id: string) => {
+  const index = toasts.value.findIndex(toast => toast.id === id);
+  if (index > -1) {
+    toasts.value[index].show = false;
+    // 애니메이션을 위해 약간의 딜레이 후 제거
+    setTimeout(() => {
+      toasts.value.splice(index, 1);
+    }, 300);
+  }
+};
+
+// 성공 메시지 토스트
+export const customSuccess = (message: string): void => {
+  showToast(message, 'success');
 };
 
 // 에러 메시지 alert
@@ -141,9 +178,11 @@ export const customInfo = (message: string, title?: string): Promise<boolean> =>
 export const useCustomModal = () => {
   return {
     modalState,
+    toasts,
     handleConfirm,
     handleCancel,
     handleClose,
+    removeToast,
     customAlert,
     customConfirm,
     customSuccess,
