@@ -16,7 +16,7 @@ const apiStore = useApiStore();
 const { loading, error } = storeToRefs(apiStore);
 
 // 데이터 저장을 위한 반응형 변수
-const responseData = ref<any>(null);
+const responseData = ref<unknown>(null);
 const endpoint = ref('users');
 const requestData = ref<Record<string, unknown>>({});
 const selectedMethod = ref<'get' | 'post' | 'put' | 'delete'>('get');
