@@ -1,19 +1,20 @@
 <script lang="ts" setup>
-import {openDiscordLogin} from '@/utils/discordAuth.ts';
-import {usePopUpClosed} from '@/stores/usePopUpClosed.ts';
+import { openDiscordLogin } from '@/utils/discordAuth.ts';
+import { usePopUpClosed } from '@/stores/usePopUpClosed.ts';
 import SearchBar from '@/components/SearchBar.vue';
 import ChatSidebar from '@/components/ChatSidebar.vue';
 import ApplicationHistory from '@/components/ApplicationHistory.vue';
 import RecruitmentModal from '@/components/RecruitmentModal.vue';
 import ResumeModal from '@/components/ResumeModal.vue';
 import CustomModal from '@/components/CustomModal.vue';
-import {inject, ref} from 'vue';
-import {customError, useCustomModal} from '@/composables/useCustomModal.ts';
-import type {VueCookies} from 'vue-cookies';
-import {useRoute} from 'vue-router';
-import {useKyProperties} from '@/stores/useKyProperties.ts';
-import {useAuth} from '@/stores/useAuth.ts';
-import {useNotFound} from '@/stores/useNotFound.ts';
+import ToastContainer from '@/components/ToastContainer.vue';
+import { inject, onMounted, ref } from 'vue';
+import { customError, useCustomModal } from '@/composables/useCustomModal.ts';
+import type { VueCookies } from 'vue-cookies';
+import { useRoute } from 'vue-router';
+import { useKyProperties } from '@/stores/useKyProperties.ts';
+import { useAuth } from '@/stores/useAuth.ts';
+import { useNotFound } from '@/stores/useNotFound.ts';
 
 const popUpClosed = usePopUpClosed();
 const showRecruitmentModal = ref(false);
@@ -25,7 +26,7 @@ const kyProperties = useKyProperties();
 const auth = useAuth();
 
 // CustomModal 컴포저블 사용
-const {modalState, handleConfirm, handleCancel, handleClose} = useCustomModal();
+const { modalState, handleConfirm, handleCancel, handleClose } = useCustomModal();
 const $cookies = inject<VueCookies>('$cookies');
 if (!$cookies) {
   throw new Error("Failed to inject $cookies. Make sure it is provided in app's context.");
@@ -53,7 +54,7 @@ window.addEventListener('storage', (e) => {
   }
 });
 
-window.addEventListener('message', (e) => {
+window.addEventListener('message', async (e) => {
   if (e.origin === 'http://localhost') {
     auth.updateUserInfo(JSON.parse(e.data));
     auth.isLoggedIn = true;
@@ -115,7 +116,7 @@ const handleSearchEnter = () => {
           <button v-show="auth.isLoggedIn" class="logout-button" @click="auth.logout">
             로그아웃
           </button>
-          <SearchBar v-model="searchQuery" @enter="handleSearchEnter"/>
+          <SearchBar v-model="searchQuery" @enter="handleSearchEnter" />
         </div>
       </div>
     </header>
@@ -124,27 +125,27 @@ const handleSearchEnter = () => {
     <div class="main-layout">
       <!-- 왼쪽 사이드바 -->
       <aside v-if="!popUpClosed.isPopUp && !notFound.is404" class="left-sidebar">
-        <ChatSidebar/>
+        <ChatSidebar />
       </aside>
 
       <!-- 중앙 컨텐츠 영역 -->
       <main class="main-content">
-        <RouterView :search-query="searchQuery" :search-enter-trigger="searchEnterTrigger"/>
+        <RouterView :search-query="searchQuery" :search-enter-trigger="searchEnterTrigger" />
       </main>
 
       <!-- 오른쪽 사이드바 -->
       <aside v-if="!popUpClosed.isPopUp && !notFound.is404" class="right-sidebar">
-        <ApplicationHistory/>
+        <ApplicationHistory />
       </aside>
     </div>
 
     <!-- 푸터 -->
     <footer v-if="!popUpClosed.isPopUp" class="app-footer">
-      <p>&copy; 2024 메이플 파티. All rights reserved.</p>
+      <p>&copy; 2025 메이플 파티. All rights reserved.</p>
     </footer>
 
-    <RecruitmentModal :show="showRecruitmentModal" @close="closeRecruitmentModal"/>
-    <ResumeModal :show="showResumeModal" @close="closeResumeModal"/>
+    <RecruitmentModal :show="showRecruitmentModal" @close="closeRecruitmentModal" />
+    <ResumeModal :show="showResumeModal" @close="closeResumeModal" />
 
     <!-- CustomModal -->
     <CustomModal
@@ -159,6 +160,9 @@ const handleSearchEnter = () => {
       @close="handleClose"
       @confirm="handleConfirm"
     />
+
+    <!-- Toast Container -->
+    <ToastContainer />
   </div>
 </template>
 

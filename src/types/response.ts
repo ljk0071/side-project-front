@@ -6,6 +6,14 @@ export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
 
 export type UserType = 'ADMIN' | 'USER' | 'GUEST';
 
+/**
+ * API 응답 타입 정의
+ */
+export interface ApiResponse<T> {
+  data: T;
+  message?: string;
+}
+
 export interface Metadata {
   createdByName: string;
   createdAt: string;

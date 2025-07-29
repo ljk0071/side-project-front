@@ -10,6 +10,7 @@ import { useAuth } from '@/stores/useAuth';
 import { customAlert } from '@/composables/useCustomModal.ts';
 import { kyWithCustom } from '@/utils/ky/kyWithCustom.ts';
 import { useEventListener } from '@vueuse/core';
+import { fetchParties, parties } from '@/composables/useParty.ts';
 
 // 컴포넌트 프롭스 정의
 interface Props {
@@ -60,6 +61,7 @@ const submitRecruitment = async () => {
   });
 
   recruitmentContent.value = '';
+  parties.value = await fetchParties();
   closeModal();
 };
 
