@@ -112,8 +112,8 @@ function createKyWithBasicOptions() {
               await customError('알 수 없는 오류가 발생했습니다.')
             }
           } catch (parseError) {
-            console.error('에러 응답 파싱 실패:', parseError)
-            await customError('서버 응답을 처리하는 중 오류가 발생했습니다.')
+            // console.error('에러 응답 파싱 실패:', parseError)
+            // await customError('서버 응답을 처리하는 중 오류가 발생했습니다.')
           }
 
           // 다른 에러는 그대로 throw
@@ -123,25 +123,27 @@ function createKyWithBasicOptions() {
       afterResponse: [
         async (request, options, response) => {
           if (response.status === 401) {
-            if (response.headers.get('RTR') === 'Y' && !isFirstRefresh) {
-              isFirstRefresh = true
-              const result = await kyWithCustom(
-                'post',
-                'api/auth/refresh',
-                {},
-                {
-                  headers: {
-                    'X-CSRF-TOKEN': kyProperties.csrfToken ?? '',
-                    'REFRESH-TOKEN': kyProperties.refreshToken ?? ''
+            if (response.headers.get('RTR') === 'Y') {
+              if (!isFirstRefresh) {
+                isFirstRefresh = true
+                const result = await kyWithCustom(
+                  'post',
+                  'api/auth/refresh',
+                  {},
+                  {
+                    headers: {
+                      'X-CSRF-TOKEN': kyProperties.csrfToken ?? '',
+                      'REFRESH-TOKEN': kyProperties.refreshToken ?? ''
+                    }
                   }
-                }
-              ).json<{
-                csrfToken: string;
-                refreshToken: string;
-              }>()
+                ).json<{
+                  csrfToken: string;
+                  refreshToken: string;
+                }>()
 
-              kyProperties.csrfToken = result.csrfToken
-              kyProperties.refreshToken = result.refreshToken
+                kyProperties.csrfToken = result.csrfToken
+                kyProperties.refreshToken = result.refreshToken
+              }
 
               return kyWithCustom(
                 request.method,
@@ -151,8 +153,10 @@ function createKyWithBasicOptions() {
                 options
               )
             } else {
-              await customWarning('로그인 후 진행 해 주세요.', '로그인 필요')
-              useDiscordAuth().openDiscordLogin()
+              if (!isFirstRefresh) {
+                await customWarning('로그인 후 진행 해 주세요.', '로그인 필요')
+                useDiscordAuth().openDiscordLogin()
+              }
               return
             }
           }
