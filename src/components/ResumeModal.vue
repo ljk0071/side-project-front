@@ -8,10 +8,10 @@
 import { onMounted, ref } from 'vue';
 import { useAuth } from '@/stores/useAuth';
 import { useResume } from '@/stores/useResume';
-import { customSuccess, customWarning, useCustomModal } from '@/composables/useCustomModal.ts';
-import { openDiscordLogin } from '@/utils/discordAuth.ts';
+import { customWarning, useCustomModal } from '@/composables/useCustomModal.ts';
 import { useEventListener } from '@vueuse/core';
 import { fetchParties } from '@/composables/useParty.ts';
+import { useDiscordAuth } from '@/stores/useDiscordAuth.ts';
 
 // 컴포넌트 프롭스 정의
 interface Props {
@@ -30,6 +30,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const auth = useAuth();
+const discordAuth = useDiscordAuth();
 const resumeStore = useResume();
 const { customConfirm } = useCustomModal();
 
@@ -64,7 +65,7 @@ const submitResume = async () => {
       iconType: 'info',
     });
     if (confirmed) {
-      openDiscordLogin();
+      discordAuth.openDiscordLogin();
     }
     return;
   }

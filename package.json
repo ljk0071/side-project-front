@@ -17,6 +17,7 @@
   "dependencies": {
     "@stomp/stompjs": "^7.1.1",
     "@vueuse/core": "^13.1.0",
+    "dayjs": "^1.11.13",
     "ky": "^1.8.1",
     "pinia": "^3.0.1",
     "pinia-plugin-persistedstate": "^4.3.0",

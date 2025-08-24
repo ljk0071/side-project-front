@@ -5,66 +5,69 @@
  * 팝업 창을 닫는 기능을 담당하는 컴포넌트입니다.
  * 요청이 오면 result가 true일 때 팝업을 자동으로 닫습니다.
  */
-import { onMounted, onUnmounted } from 'vue';
-import { useRoute } from 'vue-router';
-import { usePopUpClosed } from '@/stores/usePopUpClosed.ts';
+import { onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { usePopUpClosed } from '@/stores/usePopUpClosed.ts'
+import { useDiscordAuth } from '@/stores/useDiscordAuth.ts'
 
 // Vue Router 인스턴스
-const route = useRoute();
-const popUpClosed = usePopUpClosed();
+const route = useRoute()
+const popUpClosed = usePopUpClosed()
+const discordAuth = useDiscordAuth()
 
-let closeIntervalId: number | null = null;
+let closeIntervalId: number | null = null
 
 // 팝업 닫기 함수
 const closePopup = () => {
-  closeIntervalId = setInterval(window.close, 300);
-};
+  discordAuth.isClicked = true
+  closeIntervalId = setInterval(window.close, 300)
+}
 
 // URL 파라미터 확인 함수 (Vue Router 사용)
 const checkUrlParams = () => {
-  const result = route.query.result === 'true';
+  const result = route.query.result === 'true'
 
-  let errorMessage = null;
+  let errorMessage = null
 
   if (result) {
     const userInfoResult = {
       userName: route.query.userName,
-      userUniqueId: route.query.userUniqueId,
-    };
-    opener.postMessage(JSON.stringify(userInfoResult), '/');
+      userUniqueId: route.query.userUniqueId
+    }
+    opener.postMessage(JSON.stringify(userInfoResult), 'https://maple-party.com')
   } else {
     switch (route.query.error) {
       case 'canceledByUser':
-        break;
+        break
       case 'codeNotFound':
-        errorMessage = '디스코드 인증이 정상적으로 처리되지 않았습니다.';
-        break;
+        errorMessage = '디스코드 인증이 정상적으로 처리되지 않았습니다.'
+        break
       case 'tooManyRequests':
         errorMessage =
-          '짧은 시간안에 많은 로그인 시도를 하셨습니다.\n잠시 후에 로그인을 진행 해 주세요.';
-        break;
+          '짧은 시간안에 많은 로그인 시도를 하셨습니다.\n잠시 후에 로그인을 진행 해 주세요.'
+        break
       case 'unknown':
-        errorMessage = '알 수 없는 에러가 발생하였습니다.\n개발자에게 연락 해 주세요.';
-        break;
+        errorMessage = '알 수 없는 에러가 발생하였습니다.\n개발자에게 연락 해 주세요.'
+        break
     }
   }
 
-  Object.assign(popUpClosed, { init: false, isSucceed: result, errorMessage: errorMessage });
-};
+  Object.assign(popUpClosed, { init: false, isSucceed: result, errorMessage: errorMessage })
+}
 
-Object.assign(popUpClosed, { init: true, isPopUp: true });
+Object.assign(popUpClosed, { init: true, isPopUp: true })
 
 // 컴포넌트 마운트 시 URL 파라미터 확인
 onMounted(() => {
-  checkUrlParams();
-  closePopup();
-});
+  checkUrlParams()
+  closePopup()
+})
 
 onUnmounted(() => {
   if (closeIntervalId) {
-    clearInterval(closeIntervalId);
+    clearInterval(closeIntervalId)
   }
-});
+})
 </script>
 
 <template>

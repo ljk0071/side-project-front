@@ -6,22 +6,12 @@
  * 사용자의 모든 지원서 내역을 상세하게 보여줍니다.
  */
 import { computed, ref } from 'vue';
+import type { PartyApplicationStatusTypeEnum } from '@/types/response.ts';
+import { usePartyApplications } from '@/stores/usePartyApplications.ts';
+import dayjs from 'dayjs';
 
 // 지원서 상태 타입 정의
-type ApplicationStatus = 'pending' | 'accepted' | 'rejected';
-
-// 지원서 아이템 인터페이스
-interface ApplicationItem {
-  id: number;
-  partyName: string;
-  content: string;
-  status: ApplicationStatus;
-  submittedAt: string;
-  partyType: string;
-  level: string;
-  responseDate?: string;
-  feedback?: string;
-}
+type ApplicationStatus = PartyApplicationStatusTypeEnum;
 
 // 컴포넌트 프롭스 정의
 interface Props {
@@ -37,122 +27,53 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
+const partyApplications = usePartyApplications();
+
 // 상태별 한글 텍스트
 const statusText: Record<ApplicationStatus, string> = {
-  pending: '대기중',
-  accepted: '승인됨',
-  rejected: '거절됨',
+  PENDING: '대기중',
+  ACCEPTED: '승인됨',
+  REJECTED: '거절됨',
+  CANCELLED: '취소됨',
 };
 
 // 상태별 색상
 const statusColor: Record<ApplicationStatus, string> = {
-  pending: '#ffc107',
-  accepted: '#28a745',
-  rejected: '#dc3545',
+  PENDING: '#ffc107',
+  ACCEPTED: '#28a745',
+  REJECTED: '#dc3545',
+  CANCELLED: '#8c8c8c',
 };
 
 // 필터 상태
 const selectedStatus = ref<ApplicationStatus | 'all'>('all');
 const searchQuery = ref('');
 
-// 확장된 지원서 내역 데이터
-const allApplications = ref<ApplicationItem[]>([
-  {
-    id: 1,
-    partyName: '시길',
-    content:
-      '안녕하세요! 시길 파티에 지원하고 싶습니다. 80레벨 나이트로드로 경험이 많습니다. 매일 저녁 8시-10시 활동 가능하며, 팀플레이를 중시합니다.',
-    status: 'pending',
-    submittedAt: '2024-12-20 14:30',
-    partyType: '시간의길',
-    level: '80',
-    responseDate: undefined,
-    feedback: undefined,
-  },
-  {
-    id: 2,
-    partyName: '대만 사잇길',
-    content:
-      '88프리 완숙 캐릭터로 지원합니다. 팀플레이 잘하겠습니다! 대만 사잇길 경험 많이 있고, 효율적인 사냥 패턴 숙지하고 있습니다.',
-    status: 'accepted',
-    submittedAt: '2024-12-20 13:15',
-    partyType: '사잇길',
-    level: '88',
-    responseDate: '2024-12-20 15:30',
-    feedback: '경험이 풍부하시네요! 파티에 합류해주세요.',
-  },
-  {
-    id: 3,
-    partyName: '도전의 탑',
-    content:
-      '도탑 경험 많은 87레벨 비숍입니다. 힐 서포트 가능합니다. 매주 정기적으로 참여 가능하며, 다른 파티원들과의 소통도 원활합니다.',
-    status: 'pending',
-    submittedAt: '2024-12-20 12:00',
-    partyType: '도전의탑',
-    level: '87',
-    responseDate: undefined,
-    feedback: undefined,
-  },
-  {
-    id: 4,
-    partyName: '자쿠움 원정대',
-    content:
-      '매일 9시 참여 가능합니다. 딜러로 지원합니다. 자쿠움 패턴 완전히 숙지하고 있으며, 안정적인 딜링 가능합니다.',
-    status: 'rejected',
-    submittedAt: '2024-12-19 20:45',
-    partyType: '원정대',
-    level: '85',
-    responseDate: '2024-12-20 09:00',
-    feedback: '현재 딜러 자리가 모두 찼습니다. 다음 기회에 지원해주세요.',
-  },
-  {
-    id: 5,
-    partyName: '무릉도장',
-    content:
-      '주간 무릉도장 함께하고 싶습니다. 40층까지 경험 있습니다. 주말 시간대 활동 가능하며, 꾸준히 참여하겠습니다.',
-    status: 'pending',
-    submittedAt: '2024-12-19 19:20',
-    partyType: '무릉도장',
-    level: '82',
-    responseDate: undefined,
-    feedback: undefined,
-  },
-  {
-    id: 6,
-    partyName: '혼테일 원정대',
-    content:
-      '매일 10시 혼테일 원정대 참여하고 싶습니다. 힐러로 지원하며, 안정적인 힐링과 버프 지원 가능합니다.',
-    status: 'accepted',
-    submittedAt: '2024-12-19 18:00',
-    partyType: '원정대',
-    level: '83',
-    responseDate: '2024-12-19 19:30',
-    feedback: '힐러가 필요했는데 잘 맞네요! 환영합니다.',
-  },
-  {
-    id: 7,
-    partyName: '아케인포스',
-    content:
-      '매일 아케인포스 함께하실분! VJ부터 아르카나까지 모든 지역 경험 있습니다. 꾸준한 참여 가능합니다.',
-    status: 'pending',
-    submittedAt: '2024-12-19 16:45',
-    partyType: '아케인포스',
-    level: '89',
-    responseDate: undefined,
-    feedback: undefined,
-  },
-  {
-    id: 8,
-    partyName: '핑크빈 원정대',
-    content: '주간 핑크빈 원정대 참여하고 싶습니다. 서포터 역할 가능하며, 패턴 숙지 완료했습니다.',
-    status: 'rejected',
-    submittedAt: '2024-12-18 21:30',
-    partyType: '원정대',
-    level: '84',
-    responseDate: '2024-12-19 10:00',
-    feedback: '레벨이 조금 부족합니다. 85레벨 이상일 때 다시 지원해주세요.',
-  },
-]);
+// 실제 지원서 데이터 사용
+const allApplications = computed(() => partyApplications.applications);
+
+// 시간 포맷팅 함수
+const formatTimeAgo = (createdAt: number) => {
+  const now = dayjs();
+  const created = dayjs(createdAt * 1000); // 초 단위를 밀리초로 변환
+  const diffMinutes = now.diff(created, 'minute');
+
+  if (diffMinutes < 1) {
+    return '방금 전';
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes}분 전`;
+  } else if (diffMinutes < 1440) {
+    // 24시간
+    const diffHours = Math.floor(diffMinutes / 60);
+    return `${diffHours}시간 전`;
+  } else if (diffMinutes < 10080) {
+    // 7일
+    const diffDays = Math.floor(diffMinutes / 1440);
+    return `${diffDays}일 전`;
+  } else {
+    return created.format('YYYY-MM-DD');
+  }
+};
 
 // 필터링된 지원서 목록
 const filteredApplications = computed(() => {
@@ -168,24 +89,22 @@ const filteredApplications = computed(() => {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(
       (app) =>
-        app.partyName.toLowerCase().includes(query) ||
-        app.content.toLowerCase().includes(query) ||
-        app.partyType.toLowerCase().includes(query),
+        app.partyRecruit.article.contents.toLowerCase().includes(query) ||
+        app.resume.contents.toLowerCase().includes(query),
     );
   }
 
-  return filtered.sort(
-    (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
-  );
+  return filtered.sort((a, b) => b.metadata.createdAt - a.metadata.createdAt);
 });
 
 // 상태별 통계
 const statusStats = computed(() => {
   const stats = {
     total: allApplications.value.length,
-    pending: 0,
-    accepted: 0,
-    rejected: 0,
+    PENDING: 0,
+    ACCEPTED: 0,
+    REJECTED: 0,
+    CANCELLED: 0,
   };
 
   allApplications.value.forEach((app) => {
@@ -209,12 +128,14 @@ const closeModal = () => {
  */
 const getStatusIcon = (status: ApplicationStatus) => {
   switch (status) {
-    case 'pending':
+    case 'PENDING':
       return '⏳';
-    case 'accepted':
+    case 'ACCEPTED':
       return '✅';
-    case 'rejected':
+    case 'REJECTED':
       return '✖';
+    case 'CANCELLED':
+      return '📄';
     default:
       return '📄';
   }
@@ -226,8 +147,8 @@ const getStatusIcon = (status: ApplicationStatus) => {
 const approveApplication = (applicationId: number) => {
   const application = allApplications.value.find((app) => app.id === applicationId);
   if (application) {
-    application.status = 'accepted';
-    alert(`${application.partyName} 지원서가 승인되었습니다.`);
+    application.status = 'ACCEPTED';
+    alert(`지원서가 승인되었습니다.`);
   }
 };
 
@@ -237,8 +158,8 @@ const approveApplication = (applicationId: number) => {
 const rejectApplication = (applicationId: number) => {
   const application = allApplications.value.find((app) => app.id === applicationId);
   if (application) {
-    application.status = 'rejected';
-    alert(`${application.partyName} 지원서가 거절되었습니다.`);
+    application.status = 'REJECTED';
+    alert(`지원서가 거절되었습니다.`);
   }
 };
 
@@ -262,9 +183,9 @@ const handleOverlayClick = (event: MouseEvent) => {
           <h2>📋 전체 지원서 내역</h2>
           <div class="stats-summary">
             <span class="stat-item">전체 {{ statusStats.total }}건</span>
-            <span class="stat-item pending">대기 {{ statusStats.pending }}건</span>
-            <span class="stat-item accepted">승인 {{ statusStats.accepted }}건</span>
-            <span class="stat-item rejected">거절 {{ statusStats.rejected }}건</span>
+            <span class="stat-item pending">대기 {{ statusStats.PENDING }}건</span>
+            <span class="stat-item accepted">승인 {{ statusStats.ACCEPTED }}건</span>
+            <span class="stat-item rejected">거절 {{ statusStats.REJECTED }}건</span>
           </div>
         </div>
         <button class="close-button" @click="closeModal">✕</button>
@@ -282,25 +203,25 @@ const handleOverlayClick = (event: MouseEvent) => {
               전체 ({{ statusStats.total }})
             </button>
             <button
-              :class="{ active: selectedStatus === 'pending' }"
+              :class="{ active: selectedStatus === 'PENDING' }"
               class="filter-button pending"
-              @click="selectedStatus = 'pending'"
+              @click="selectedStatus = 'PENDING'"
             >
-              ⏳ 대기중 ({{ statusStats.pending }})
+              ⏳ 대기중 ({{ statusStats.PENDING }})
             </button>
             <button
-              :class="{ active: selectedStatus === 'accepted' }"
+              :class="{ active: selectedStatus === 'ACCEPTED' }"
               class="filter-button accepted"
-              @click="selectedStatus = 'accepted'"
+              @click="selectedStatus = 'ACCEPTED'"
             >
-              ✅ 승인됨 ({{ statusStats.accepted }})
+              ✅ 승인됨 ({{ statusStats.ACCEPTED }})
             </button>
             <button
-              :class="{ active: selectedStatus === 'rejected' }"
+              :class="{ active: selectedStatus === 'REJECTED' }"
               class="filter-button rejected"
-              @click="selectedStatus = 'rejected'"
+              @click="selectedStatus = 'REJECTED'"
             >
-              ❌ 거절됨 ({{ statusStats.rejected }})
+              ❌ 거절됨 ({{ statusStats.REJECTED }})
             </button>
           </div>
           <div class="search-container">
@@ -338,20 +259,19 @@ const handleOverlayClick = (event: MouseEvent) => {
           <div class="card-main">
             <!-- 파티 정보 -->
             <div class="party-header">
-              <h3 class="party-name">{{ application.partyName }}</h3>
+              <h3 class="party-name">파티 모집글</h3>
               <div class="party-meta">
-                <span class="party-type">{{ application.partyType }}</span>
-                <span class="level">Lv.{{ application.level }}</span>
+                <span class="party-type">{{ formatTimeAgo(application.metadata.createdAt) }}</span>
               </div>
             </div>
 
             <!-- 지원 내용 -->
             <div class="application-content">
-              <p>{{ application.content }}</p>
+              <p>{{ application.resume.contents }}</p>
             </div>
 
             <!-- 대기중인 지원서에 승인/거절 버튼 추가 -->
-            <div v-if="application.status === 'pending'" class="card-actions">
+            <div v-if="application.status === 'PENDING'" class="card-actions">
               <button class="approve-button" @click="approveApplication(application.id)">
                 ✅ 승인
               </button>

@@ -7,9 +7,9 @@
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import PartyCard from './PartyCard.vue';
-import type { Party } from '@/components/PartyCard.vue';
 import { useResume } from '@/stores/useResume.ts';
 import { fetchParties, parties } from '@/composables/useParty.ts';
+import { usePartyOwner } from '@/stores/usePartyOwner.ts';
 
 // 컴포넌트 프롭스 정의
 const props = defineProps<{
@@ -23,10 +23,24 @@ const props = defineProps<{
 
 /** 현재 페이지 번호 */
 const currentPage = ref(1);
-/** 페이지당 카드 수 */
-const cardsPerPage = 12; // 3열 x 3행 = 9개
 
 const resumeStore = useResume();
+const partyOwner = usePartyOwner();
+
+/**
+ * 사이드바 유무에 따른 동적 컬럼 수 계산
+ */
+const columnsCount = computed(() => {
+  // 지원서 목록이 숨겨져 있으면 더 많은 컬럼 사용
+  return partyOwner.hasCreatedParty ? 3 : 4; // 사이드바 있으면 3열, 없으면 4열
+});
+
+/**
+ * 동적 페이지당 카드 수 계산
+ */
+const dynamicCardsPerPage = computed(() => {
+  return columnsCount.value * 4; // 4행 기준
+});
 
 /**
  * 디바운스된 검색어를 위한 ref
@@ -53,10 +67,10 @@ watch(
 
 /**
  * 총 페이지 수 계산
- * 필터링된 카드 수와 페이지당 카드 수를 기반으로 계산합니다.
+ * 필터링된 카드 수와 동적 페이지당 카드 수를 기반으로 계산합니다.
  */
 const totalPages = computed(() => {
-  return Math.ceil(parties.value.length / cardsPerPage);
+  return Math.ceil(parties.value.length / dynamicCardsPerPage.value);
 });
 
 /**
@@ -64,8 +78,8 @@ const totalPages = computed(() => {
  * 현재 페이지 번호에 따라 해당 페이지에 표시될 카드들만 추출합니다.
  */
 const paginatedParties = computed(() => {
-  const startIndex = (currentPage.value - 1) * cardsPerPage;
-  const endIndex = startIndex + cardsPerPage;
+  const startIndex = (currentPage.value - 1) * dynamicCardsPerPage.value;
+  const endIndex = startIndex + dynamicCardsPerPage.value;
   return parties.value.slice(startIndex, endIndex);
 });
 
@@ -79,6 +93,9 @@ const resetPagination = () => {
 
 // 디바운스된 검색어나 필터 변경 시 페이지네이션 초기화
 watch([debouncedSearchQuery, () => props.selectedFilter], resetPagination);
+
+// 사이드바 상태 변경 시 페이지네이션 초기화 (카드 수가 변경되므로)
+watch(() => partyOwner.hasCreatedParty, resetPagination);
 
 /**
  * 엔터 키 즉시 검색 처리
@@ -119,7 +136,7 @@ onUnmounted(() => {
   <div class="card-list-container">
     <!-- 카드 목록 영역 -->
     <div class="card-list-wrapper">
-      <div class="card-list">
+      <div class="card-list" :class="partyOwner.hasCreatedParty ? 'has-sidebar' : 'no-sidebar'">
         <PartyCard
           v-for="party in paginatedParties"
           :key="party.id"
@@ -128,6 +145,7 @@ onUnmounted(() => {
           :currentMembers="party.currentMembers ?? 1"
           :userUniqueId="party.userUniqueId"
           :isApplied="resumeStore.appliedParties.includes(party.id)"
+          :isRejected="resumeStore.rejectedParties.includes(party.id)"
         />
       </div>
     </div>
@@ -176,7 +194,7 @@ onUnmounted(() => {
   flex-direction: column;
   width: 100%;
   height: 100%; /* 부모 컨테이너 높이에 맞춤 */
-  padding: 20px 0; /* 자연스러운 여백 */
+  padding: 20px 0 20px 20px; /* 상하 여백만, 좌우 여백 제거 */
 }
 
 /* 카드 목록 래퍼 */
@@ -184,6 +202,7 @@ onUnmounted(() => {
   flex: 1; /* 남은 공간 모두 사용 */
   display: flex;
   align-items: flex-start; /* 카드를 상단부터 배치 */
+  justify-content: flex-start; /* 왼쪽 정렬 */
 }
 
 /* 카드 목록 플렉스 레이아웃 */
@@ -192,15 +211,22 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 1.5vw; /* 간격을 더 넓게 */
   width: 100%;
-  max-width: 1200px; /* 최대 너비 제한으로 가독성 향상 */
-  margin: 0 auto; /* 중앙 정렬 */
+  max-width: 1400px; /* 최대 너비를 늘려서 4열 수용 */
+  margin: 0; /* 왼쪽 정렬로 변경 */
   align-items: flex-start; /* 카드를 상단 정렬 */
+  justify-content: flex-start; /* 왼쪽 정렬 명시 */
 }
 
-/* 카드 크기 설정 */
-.card-list > * {
-  flex: 0 0 calc(33% - 1.125vw); /* 4개씩 배치, gap 고려 */
-  max-width: calc(33% - 1.125vw);
+/* 사이드바가 있을 때 - 3열 배치 */
+.card-list.has-sidebar > * {
+  flex: 0 0 calc(33.333% - 1vw);
+  max-width: calc(33.333% - 1vw);
+}
+
+/* 사이드바가 없을 때 - 4열 배치 */
+.card-list.no-sidebar > * {
+  flex: 0 0 calc(25% - 1.125vw);
+  max-width: calc(25% - 1.125vw);
 }
 
 /* 페이지네이션 래퍼 */
@@ -219,7 +245,8 @@ onUnmounted(() => {
     max-width: 800px;
   }
 
-  .card-list > * {
+  .card-list.has-sidebar > *,
+  .card-list.no-sidebar > * {
     flex: 0 0 calc(50% - 1.5vw); /* 태블릿에서 2열 */
     max-width: calc(50% - 1.5vw);
   }
@@ -231,7 +258,8 @@ onUnmounted(() => {
     max-width: 400px;
   }
 
-  .card-list > * {
+  .card-list.has-sidebar > *,
+  .card-list.no-sidebar > * {
     flex: 0 0 100%; /* 모바일에서 1열 */
     max-width: 100%;
   }

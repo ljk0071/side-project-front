@@ -1,171 +1,23 @@
-<script lang="ts" setup>
+<script setup lang="ts">
 /**
  * ChatSidebar 컴포넌트
  *
  * 메인 페이지 왼쪽 사이드바에 표시되는 간소화된 채팅 컴포넌트입니다.
  * 실시간 채팅 기능을 제공하되 사이드바에 최적화된 UI를 가집니다.
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
 import { useAuth } from '@/stores/useAuth.ts';
-import { useElementHover } from '@vueuse/core';
-import { useRefreshDetect } from '@/stores/useRefreshDetect.ts';
+import { useMyWebSocket } from '@/composables/useMyWebSocket.ts';
+import dayjs from 'dayjs';
+import { useTerms } from '@/stores/useTerms.ts';
 
 // 상태 관리
-const stompClient = ref<Client | null>(null);
-const connectionStatus = ref<'disconnected' | 'connecting' | 'connected'>('disconnected');
-const messageInput = ref('');
-const receivedMessages = ref<Array<{ timestamp: string; content: string; sender: string }>>([]);
+const messageInput = ref<string>('');
 const messagesDisplayRef = ref<HTMLElement | null>(null);
 
 // 인증 스토어
 const auth = useAuth();
-const refreshDetect = useRefreshDetect();
-
-// 호버 상태 (미리보기용)
-const isMessagesDisplayHovered = useElementHover(messagesDisplayRef);
-
-// 최근 메시지만 표시 (사이드바용)
-const recentMessages = computed(() => {
-  return receivedMessages.value.slice(-10); // 최근 10개만
-});
-
-// 미리보기용 최신 메시지 (최근 3개)
-const latestMessages = computed(() => {
-  return receivedMessages.value.slice(-3).reverse();
-});
-
-// 미리보기 표시 여부
-const showPreview = computed(() => {
-  return isMessagesDisplayHovered.value && receivedMessages.value.length > 0;
-});
-
-/**
- * STOMP 연결
- */
-const connectStomp = () => {
-  if (stompClient.value?.connected) {
-    return;
-  }
-
-  connectionStatus.value = 'connecting';
-
-  stompClient.value = new Client({
-    webSocketFactory: () => new SockJS(`${window.location.origin}:8080/ws/chat`),
-    connectHeaders: {},
-    debug: () => {}, // 디버그 로그 비활성화
-    reconnectDelay: 5000,
-    heartbeatIncoming: 4000,
-    heartbeatOutgoing: 4000,
-    onConnect: () => {
-      connectionStatus.value = 'connected';
-      console.log('사이드바 채팅 연결됨');
-
-      // 메시지 수신을 위한 구독
-      stompClient.value?.subscribe('/topic/chat/ROOM_1752315601836', (message) => {
-        const receivedData = JSON.parse(message.body);
-        if (receivedData.senderId !== auth.userInfo.uniqueId) {
-          receivedMessages.value.push({
-            timestamp: new Date().toLocaleTimeString(),
-            content: receivedData.content || receivedData.message || message.body,
-            sender: receivedData.senderName || 'Server',
-          });
-          scrollToBottom();
-        }
-      });
-
-      refreshDetect.checkRefresh();
-
-      if (!refreshDetect.isRefresh) {
-        // 연결 완료 후 방 참가 (첫 번째 연결 시에만)
-        stompClient.value?.publish({
-          destination: '/chat/ROOM_1752315601836/join',
-        });
-      }
-    },
-    onStompError: (frame) => {
-      connectionStatus.value = 'disconnected';
-      console.error('사이드바 STOMP 에러:', frame.headers['message']);
-    },
-    onDisconnect: () => {
-      connectionStatus.value = 'disconnected';
-      console.log('사이드바 STOMP 연결 해제됨');
-    },
-  });
-
-  stompClient.value.activate();
-};
-
-/**
- * STOMP 연결 해제
- */
-const disconnectStomp = () => {
-  if (stompClient.value) {
-    stompClient.value.deactivate();
-    stompClient.value = null;
-    connectionStatus.value = 'disconnected';
-  }
-};
-
-/**
- * 메시지 전송
- */
-const sendMessage = () => {
-  if (stompClient.value?.connected && messageInput.value.trim()) {
-    const message = {
-      content: messageInput.value,
-      sender: 'Vue Client',
-      timestamp: new Date().toISOString(),
-    };
-
-    stompClient.value.publish({
-      destination: '/chat/ROOM_1752315601836/send',
-      body: JSON.stringify(message),
-    });
-
-    receivedMessages.value.push({
-      timestamp: new Date().toLocaleTimeString(),
-      content: messageInput.value,
-      sender: 'Me',
-    });
-
-    messageInput.value = '';
-    scrollToBottom();
-  }
-};
-
-/**
- * 스크롤을 하단으로 이동
- */
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesDisplayRef.value) {
-      messagesDisplayRef.value.scrollTop = messagesDisplayRef.value.scrollHeight;
-    }
-  });
-};
-
-/**
- * 메시지 내용 단축
- */
-const truncateMessage = (content: string, maxLength: number = 40) => {
-  return content.length > maxLength ? content.substring(0, maxLength) + '...' : content;
-};
-
-/**
- * 메시지 지우기
- */
-const clearMessages = () => {
-  receivedMessages.value = [];
-};
-
-/**
- * 로그아웃 처리
- */
-const logout = () => {
-  auth.logout();
-};
+const websocket = useMyWebSocket();
 
 /**
  * 드래그 관련 상태와 함수들
@@ -173,11 +25,12 @@ const logout = () => {
 const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 const position = ref({ x: 0, y: 0 });
-const chatSidebarRef = ref<HTMLElement | null>(null);
+const chatSidebarRef = useTemplateRef<HTMLElement>('chatSidebarRef');
 
 /**
  * 마우스 드래그 시작
  */
+
 const onMouseDown = (event: MouseEvent) => {
   isDragging.value = true;
   const rect = chatSidebarRef.value?.getBoundingClientRect();
@@ -229,135 +82,125 @@ const dragStyle = computed(() => {
   };
 });
 
-// 기존 HTML5 드래그 이벤트들 (제거)
-const onDragStart = (event: DragEvent) => {
-  event.preventDefault();
+const welcomeMessage = ref<string>('파티 모집글을 작성하거나 지원이 수락되면\n채팅이 시작됩니다.');
+
+const convertTimestamp = (timestamp: number) => {
+  return dayjs(timestamp * 1000).format('HH:mm');
 };
 
-const onDrag = (event: DragEvent) => {
-  event.preventDefault();
+/**
+ * 스크롤을 하단으로 이동
+ */
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (messagesDisplayRef.value) {
+      messagesDisplayRef.value.scrollTop = messagesDisplayRef.value.scrollHeight;
+    }
+  });
 };
 
-const onDragEnd = (event: DragEvent) => {
-  event.preventDefault();
+const sendMessageToParty = async () => {
+  if (messageInput.value) {
+    websocket.sendMessage(messageInput.value);
+    messageInput.value = '';
+  }
 };
 
-// 메시지 자동 스크롤
+const terms = useTerms();
+
+// 메시지 변경 시 자동 스크롤
 watch(
-  receivedMessages,
+  () => websocket.receivePartyMessage.value,
   () => {
     scrollToBottom();
   },
   { deep: true },
 );
-
-// 컴포넌트 생명주기
-onMounted(() => {
-  if (auth.isLoggedIn) {
-    // connectStomp();
-  }
-});
-
-onUnmounted(() => {
-  disconnectStomp();
-});
 </script>
 
 <template>
-  <div
-    ref="chatSidebarRef"
-    :class="{ dragging: isDragging }"
-    :style="dragStyle"
-    class="chat-sidebar"
-    @dragstart="onDragStart"
-    @mousedown="onMouseDown"
-  >
+  <div :class="{ dragging: isDragging }" class="chat-sidebar" :style="dragStyle">
     <!-- 헤더 -->
-    <div class="chat-header">
+    <div class="chat-header" ref="chatSidebarRef" @mousedown="onMouseDown">
       <h3>실시간 채팅</h3>
-      <div class="header-right">
-        <div :class="connectionStatus" class="connection-status">
-          <span v-if="connectionStatus === 'connected'">🟢</span>
-          <span v-else-if="connectionStatus === 'connecting'">🟡</span>
-          <span v-else>🔴</span>
-        </div>
-        <button v-if="auth.isLoggedIn" class="logout-button" @click="logout">로그아웃</button>
-      </div>
     </div>
 
     <!-- 로그인이 필요한 경우 -->
     <div v-if="!auth.isLoggedIn" class="login-required">
-      <p class="login-info">파티 모집글에서 지원을 수락하면 채팅이 시작됩니다.</p>
+      <p class="login-info">{{ welcomeMessage }}</p>
     </div>
 
     <!-- 채팅 영역 -->
     <div v-else class="chat-content">
-      <!-- 연결 상태가 disconnected인 경우 연결 버튼 -->
-      <div v-if="connectionStatus === 'disconnected'" class="connection-control">
-        <button class="connect-button" @click="connectStomp">채팅 연결</button>
-      </div>
-
-      <!-- 메시지 표시 영역 -->
-      <div v-if="connectionStatus === 'connected'" class="messages-container">
-        <div ref="messagesDisplayRef" class="messages-display">
-          <div v-if="recentMessages.length === 0" class="no-messages">아직 메시지가 없습니다.</div>
-          <div
-            v-for="(msg, index) in recentMessages"
-            :key="index"
-            :class="{ 'my-message': msg.sender === 'Me' }"
-            class="message-item"
-          >
-            <div class="message-header">
-              <span class="sender">{{ msg.sender }}</span>
-              <span class="timestamp">{{ msg.timestamp }}</span>
+      <template v-if="!terms.getReadStatus()">
+        <div class="terms-required">
+          <p class="terms-info">채팅을 시작하기 전에<br/>이용 약관에 동의해주세요.</p>
+          <div class="terms-notice">
+            <span>📋</span>
+            <span>약관은 자동으로 표시됩니다</span>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <!-- 메시지 표시 영역 -->
+        <div v-if="websocket.isJoined()" class="messages-container">
+          <div ref="messagesDisplayRef" class="messages-display">
+            <div v-if="websocket.receivePartyMessage.value.length === 0" class="no-messages">
+              아직 메시지가 없습니다.
             </div>
-            <div class="message-content">
-              {{ truncateMessage(msg.content) }}
+            <div
+              v-for="(msg, index) in websocket.receivePartyMessage.value"
+              :key="index"
+              :class="{ 'my-message': msg.senderName === 'Me' }"
+              class="message-item"
+            >
+              <div class="message-header">
+                <span class="sender">{{ msg.senderName }}</span>
+                <span class="timestamp">{{ convertTimestamp(msg.timestamp) }}</span>
+              </div>
+              <div class="message-content">
+                {{ msg.contents }}
+              </div>
             </div>
           </div>
 
-          <!-- 미리보기 -->
-          <div v-if="showPreview" class="message-preview">
-            <div class="preview-header">최근 메시지</div>
-            <div v-for="(msg, index) in latestMessages" :key="index" class="preview-item">
-              <span class="preview-sender">{{ msg.sender }}:</span>
-              <span class="preview-content">{{ msg.content }}</span>
+          <!-- 메시지 입력 -->
+          <div class="message-input-container">
+            <div class="input-group">
+              <input
+                v-model="messageInput"
+                class="message-input"
+                placeholder="메시지 입력..."
+                type="text"
+                @keyup.enter="sendMessageToParty"
+              />
+              <button
+                :disabled="!messageInput.trim()"
+                class="send-button"
+                @click="sendMessageToParty"
+              >
+                📤
+              </button>
+              <button class="clear-button">🗑️</button>
             </div>
           </div>
         </div>
-
-        <!-- 메시지 입력 -->
-        <div class="message-input-container">
-          <div class="input-group">
-            <input
-              v-model="messageInput"
-              class="message-input"
-              placeholder="메시지 입력..."
-              type="text"
-              @keyup.enter="sendMessage"
-            />
-            <button :disabled="!messageInput.trim()" class="send-button" @click="sendMessage">
-              📤
-            </button>
-            <button class="clear-button" @click="clearMessages">🗑️</button>
-          </div>
-        </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 
 <style scoped>
 .chat-sidebar {
-  width: 300px;
+  width: 450px;
   background-color: var(--card-bg-color);
   border-radius: 12px;
   border: 1px solid var(--border-color);
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  height: fit-content;
-  min-height: 300px;
-  max-height: 80vh;
+  height: 450px;
+  min-height: 450px;
+  max-height: 450px;
   display: flex;
   flex-direction: column;
   cursor: grab;
@@ -398,33 +241,6 @@ onUnmounted(() => {
   color: var(--text-color);
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.connection-status {
-  font-size: 16px;
-}
-
-.logout-button {
-  padding: 4px 8px;
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.logout-button:hover {
-  background-color: #c82333;
-  transform: scale(1.05);
-}
-
 .login-required {
   padding: 20px;
   text-align: center;
@@ -445,6 +261,37 @@ onUnmounted(() => {
   margin-top: 10px !important;
   font-size: 12px !important;
   color: var(--primary-color, #3366cc) !important;
+  white-space: pre-line;
+}
+
+.terms-required {
+  padding: 20px;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 15px;
+}
+
+.terms-info {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-color);
+  line-height: 1.5;
+}
+
+.terms-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: var(--tag1-bg-color);
+  border: 1px solid var(--tag1-text-color);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--tag1-text-color);
 }
 
 .chat-content {
@@ -452,27 +299,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.connection-control {
-  padding: 20px;
-  text-align: center;
-}
-
-.connect-button {
-  padding: 10px 20px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.connect-button:hover {
-  background-color: #218838;
-  transform: translateY(-1px);
 }
 
 .messages-container {
