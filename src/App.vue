@@ -164,27 +164,22 @@ onMounted(async () => {
   notFound.is404 = false
   activeParty.hasActiveParty = false
   partyApplication.cleanApplications()
-  if (auth.isLoggedIn) {
-    const res = await kyWithCustom('get', 'v1/party/my').json<ApiResponse<PartyRecruit>>()
-    if (res.data) {
-      activeParty.setActiveParty(true)
-    }
-    const resumes = await kyWithCustom('get', 'v1/party/application/my').json<
-      ApiResponse<Array<PartyApplication>>
-    >()
-    if (resumes.data && resumes.data.length > 0) {
-      partyApplication.applications = resumes.data
-    }
-    const response = await kyWithCustom('get', 'v1/party/application').json<
-      ApiResponse<Array<PartyApplication>>
-    >()
-    if (response.data && response.data.length > 0) {
-      for (const application of response.data) {
-        if (application.status === 'ACCEPTED') {
-          await websocket.connect()
-          websocket.joinParty(application.partyRecruit.id)
-          return
-        }
+
+  const resumes = await kyWithCustom('get', 'v1/party/application/my').json<
+    ApiResponse<Array<PartyApplication>>
+  >()
+  if (resumes.data && resumes.data.length > 0) {
+    partyApplication.applications = resumes.data
+  }
+  const response = await kyWithCustom('get', 'v1/party/application').json<
+    ApiResponse<Array<PartyApplication>>
+  >()
+  if (response.data && response.data.length > 0) {
+    for (const application of response.data) {
+      if (application.status === 'ACCEPTED') {
+        await websocket.connect()
+        websocket.joinParty(application.partyRecruit.id)
+        return
       }
     }
   }

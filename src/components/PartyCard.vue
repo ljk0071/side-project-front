@@ -13,7 +13,7 @@ import { useResume } from '@/stores/useResume.ts'
 import { kyWithCustom } from '@/utils/ky/kyWithCustom.ts'
 import { fetchParties, parties } from '@/composables/useParty.ts'
 import { useMyWebSocket } from '@/composables/useMyWebSocket.ts'
-import type { PartyRecruit } from '@/types/response.ts'
+import type { ApiResponse, PartyRecruit } from '@/types/response.ts'
 import { usePartyOwner } from '@/stores/usePartyOwner.ts'
 import { usePartyApplications } from '@/stores/usePartyApplications.ts'
 import { useActiveParty } from '@/stores/useActiveParty.ts'
@@ -268,7 +268,14 @@ onMounted(async () => {
     }
   })
 
-  if (partyOwner.isMyParty) {
+  if (auth.isLoggedIn) {
+    const res = await kyWithCustom('get', 'v1/party/my').json<ApiResponse<PartyRecruit>>()
+    if (res.data) {
+      activeParty.setActiveParty(true)
+    }
+  }
+
+  if (isMyParty.value) {
     await webSocket.connect()
     webSocket.joinParty(partyOwner.partyRecruitId)
   }
