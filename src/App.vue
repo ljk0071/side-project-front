@@ -44,7 +44,6 @@ const partyApplication = usePartyApplications()
 
 // CustomModal 컴포저블 사용
 const { modalState, handleConfirm, handleCancel, handleClose } = useCustomModal()
-const partyOwner = usePartyOwner()
 const activeParty = useActiveParty()
 const $cookies = inject<VueCookies>('$cookies')
 if (!$cookies) {
@@ -74,10 +73,6 @@ window.addEventListener('storage', async (e) => {
         if (res.data) {
           activeParty.setActiveParty(true)
         }
-        // if (partyOwner.isMyParty) {
-        //   await websocket.connect()
-        //   websocket.joinParty(partyOwner.partyRecruitId)
-        // }
         const resumes = await kyWithCustom('get', 'v1/party/application/my').json<
           ApiResponse<Array<PartyApplication>>
         >()
@@ -174,10 +169,6 @@ onMounted(async () => {
     if (res.data) {
       activeParty.setActiveParty(true)
     }
-    // if (partyOwner.isMyParty) {
-    //   await websocket.connect()
-    //   websocket.joinParty(partyOwner.partyRecruitId)
-    // }
     const resumes = await kyWithCustom('get', 'v1/party/application/my').json<
       ApiResponse<Array<PartyApplication>>
     >()

@@ -5,88 +5,88 @@
  * 메인 페이지 왼쪽 사이드바에 표시되는 간소화된 채팅 컴포넌트입니다.
  * 실시간 채팅 기능을 제공하되 사이드바에 최적화된 UI를 가집니다.
  */
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
-import { useAuth } from '@/stores/useAuth.ts';
-import { useMyWebSocket } from '@/composables/useMyWebSocket.ts';
-import dayjs from 'dayjs';
-import { useTerms } from '@/stores/useTerms.ts';
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import { useAuth } from '@/stores/useAuth.ts'
+import { useMyWebSocket } from '@/composables/useMyWebSocket.ts'
+import dayjs from 'dayjs'
+import { useTerms } from '@/stores/useTerms.ts'
 
 // 상태 관리
-const messageInput = ref<string>('');
-const messagesDisplayRef = ref<HTMLElement | null>(null);
+const messageInput = ref<string>('')
+const messagesDisplayRef = ref<HTMLElement | null>(null)
 
 // 인증 스토어
-const auth = useAuth();
-const websocket = useMyWebSocket();
+const auth = useAuth()
+const websocket = useMyWebSocket()
 
 /**
  * 드래그 관련 상태와 함수들
  */
-const isDragging = ref(false);
-const dragOffset = ref({ x: 0, y: 0 });
-const position = ref({ x: 0, y: 0 });
-const chatSidebarRef = useTemplateRef<HTMLElement>('chatSidebarRef');
+const isDragging = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
+const position = ref({ x: 0, y: 0 })
+const chatSidebarRef = useTemplateRef<HTMLElement>('chatSidebarRef')
 
 /**
  * 마우스 드래그 시작
  */
 
 const onMouseDown = (event: MouseEvent) => {
-  isDragging.value = true;
-  const rect = chatSidebarRef.value?.getBoundingClientRect();
+  isDragging.value = true
+  const rect = chatSidebarRef.value?.getBoundingClientRect()
   if (rect) {
     dragOffset.value = {
       x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    };
+      y: event.clientY - rect.top
+    }
   }
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
-  event.preventDefault();
-};
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+  event.preventDefault()
+}
 
 /**
  * 마우스 드래그 중
  */
 const onMouseMove = (event: MouseEvent) => {
-  if (!isDragging.value) return;
+  if (!isDragging.value) return
 
   position.value = {
     x: event.clientX - dragOffset.value.x,
-    y: event.clientY - dragOffset.value.y,
-  };
-};
+    y: event.clientY - dragOffset.value.y
+  }
+}
 
 /**
  * 마우스 드래그 종료
  */
 const onMouseUp = () => {
-  isDragging.value = false;
-  document.removeEventListener('mousemove', onMouseMove);
-  document.removeEventListener('mouseup', onMouseUp);
-};
+  isDragging.value = false
+  document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('mouseup', onMouseUp)
+}
 
 /**
  * 드래그 스타일 계산
  */
 const dragStyle = computed(() => {
   if (position.value.x === 0 && position.value.y === 0) {
-    return {};
+    return {}
   }
   return {
     position: 'fixed',
     left: `${position.value.x}px`,
     top: `${position.value.y}px`,
     zIndex: 1000,
-    transform: 'none',
-  };
-});
+    transform: 'none'
+  }
+})
 
-const welcomeMessage = ref<string>('파티 모집글을 작성하거나 지원이 수락되면\n채팅이 시작됩니다.');
+const welcomeMessage = ref<string>('파티 모집글을 작성하거나 지원이 수락되면\n채팅이 시작됩니다.')
 
 const convertTimestamp = (timestamp: number) => {
-  return dayjs(timestamp * 1000).format('HH:mm');
-};
+  return dayjs(timestamp * 1000).format('HH:mm')
+}
 
 /**
  * 스크롤을 하단으로 이동
@@ -94,28 +94,28 @@ const convertTimestamp = (timestamp: number) => {
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesDisplayRef.value) {
-      messagesDisplayRef.value.scrollTop = messagesDisplayRef.value.scrollHeight;
+      messagesDisplayRef.value.scrollTop = messagesDisplayRef.value.scrollHeight
     }
-  });
-};
+  })
+}
 
 const sendMessageToParty = async () => {
   if (messageInput.value) {
-    websocket.sendMessage(messageInput.value);
-    messageInput.value = '';
+    websocket.sendMessage(messageInput.value)
+    messageInput.value = ''
   }
-};
+}
 
-const terms = useTerms();
+const terms = useTerms()
 
 // 메시지 변경 시 자동 스크롤
 watch(
   () => websocket.receivePartyMessage.value,
   () => {
-    scrollToBottom();
+    scrollToBottom()
   },
-  { deep: true },
-);
+  { deep: true }
+)
 </script>
 
 <template>
@@ -134,7 +134,7 @@ watch(
     <div v-else class="chat-content">
       <template v-if="!terms.getReadStatus()">
         <div class="terms-required">
-          <p class="terms-info">채팅을 시작하기 전에<br/>이용 약관에 동의해주세요.</p>
+          <p class="terms-info">채팅을 시작하기 전에<br />이용 약관에 동의해주세요.</p>
           <div class="terms-notice">
             <span>📋</span>
             <span>약관은 자동으로 표시됩니다</span>
@@ -181,7 +181,6 @@ watch(
               >
                 📤
               </button>
-              <button class="clear-button">🗑️</button>
             </div>
           </div>
         </div>
@@ -204,9 +203,8 @@ watch(
   display: flex;
   flex-direction: column;
   cursor: grab;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: transform 0.2s ease,
+  box-shadow 0.2s ease;
 }
 
 .chat-sidebar:active {
