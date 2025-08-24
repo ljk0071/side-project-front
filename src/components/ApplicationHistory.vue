@@ -5,204 +5,195 @@
  * 지원서 제출 내역을 스택 형식으로 표시하는 사이드바 컴포넌트입니다.
  * 사용자가 제출한 지원서들의 상태와 내용을 보여줍니다.
  */
-import { computed, ref } from 'vue';
-import ApplicationHistoryModal from './ApplicationHistoryModal.vue';
+import { computed, ref, Teleport } from 'vue'
+import ApplicationHistoryModal from './ApplicationHistoryModal.vue'
+import type { PartyApplicationStatusTypeEnum } from '@/types/response.ts'
+import { customSuccess } from '@/composables/useCustomModal.ts'
+import { usePartyApplications } from '@/stores/usePartyApplications.ts'
+import dayjs from 'dayjs'
+import { kyWithCustom } from '@/utils/ky/kyWithCustom.ts'
+import { useMyWebSocket } from '@/composables/useMyWebSocket.ts'
 
 // 이벤트 정의
 interface Emits {
   (e: 'open-full-view'): void;
 }
 
-const emit = defineEmits<Emits>();
+const emit = defineEmits<Emits>()
 
 // 모달 상태
-const showFullModal = ref(false);
-
-// 지원서 상태 타입 정의
-type ApplicationStatus = 'pending' | 'accepted' | 'rejected';
-
-// 지원서 아이템 인터페이스
-interface ApplicationItem {
-  id: number;
-  partyName: string;
-  content: string;
-  status: ApplicationStatus;
-  submittedAt: string;
-}
+const showFullModal = ref(false)
+const partyApplications = usePartyApplications()
+const applications = computed(() => partyApplications.applications)
 
 // 상태별 한글 텍스트
-const statusText: Record<ApplicationStatus, string> = {
-  pending: '대기중',
-  accepted: '승인됨',
-  rejected: '거절됨',
-};
+const statusText: Record<PartyApplicationStatusTypeEnum, string> = {
+  PENDING: '대기중',
+  ACCEPTED: '승인됨',
+  REJECTED: '거절됨',
+  CANCELLED: '취소됨'
+}
 
 // 상태별 색상
-const statusColor: Record<ApplicationStatus, string> = {
-  pending: '#ffc107',
-  accepted: '#28a745',
-  rejected: '#dc3545',
-};
-
-// 임시 지원서 내역 데이터
-const applications = ref<ApplicationItem[]>([
-  {
-    id: 1,
-    partyName: '시길',
-    content: '안녕하세요! 시길 파티에 지원하고 싶습니다. 80레벨 나이트로드로 경험이 많습니다.',
-    status: 'pending',
-    submittedAt: '2024-12-20 14:30',
-  },
-  {
-    id: 2,
-    partyName: '대만 사잇길',
-    content: '88프리 완숙 캐릭터로 지원합니다. 팀플레이 잘하겠습니다!',
-    status: 'accepted',
-    submittedAt: '2024-12-20 13:15',
-  },
-  {
-    id: 3,
-    partyName: '도전의 탑',
-    content: '도탑 경험 많은 87레벨 비숍입니다. 힐 서포트 가능합니다.',
-    status: 'pending',
-    submittedAt: '2024-12-20 12:00',
-  },
-  {
-    id: 4,
-    partyName: '자쿠움 원정대',
-    content: '매일 9시 참여 가능합니다. 딜러로 지원합니다.',
-    status: 'rejected',
-    submittedAt: '2024-12-19 20:45',
-  },
-  {
-    id: 5,
-    partyName: '무릉도장',
-    content: '주간 무릉도장 함께하고 싶습니다. 40층까지 경험 있습니다.',
-    status: 'pending',
-    submittedAt: '2024-12-19 19:20',
-  },
-]);
+const statusColor: Record<PartyApplicationStatusTypeEnum, string> = {
+  PENDING: '#ffc107',
+  ACCEPTED: '#28a745',
+  REJECTED: '#dc3545',
+  CANCELLED: '#8c8c8c'
+}
 
 /**
  * 내용 일부만 표시하는 함수
  */
-const truncateContent = (content: string, maxLength: number = 50) => {
-  return content.length > maxLength ? content.substring(0, maxLength) + '...' : content;
-};
-
-/**
- * 상태 아이콘 반환
- */
-const getStatusIcon = (status: ApplicationStatus) => {
-  switch (status) {
-    case 'pending':
-      return '⏳';
-    case 'accepted':
-      return '✅';
-    case 'rejected':
-      return '✖';
-    default:
-      return '📄';
-  }
-};
+const truncateContent = (contents: string = '', maxLength: number = 50) => {
+  return contents.length > maxLength ? contents.substring(0, maxLength) + '...' : contents
+}
 
 /**
  * 전체보기 모달 열기
  */
 const openFullView = () => {
-  showFullModal.value = true;
-};
+  // 드래그 중이 아닐 때만 모달 열기
+  if (!isDragging.value) {
+    // 드래그 관련 상태 완전 초기화
+    position.value = { x: 0, y: 0 }
+    isDragging.value = false
+
+    // 모달 열기
+    showFullModal.value = true
+  }
+}
 
 /**
  * 전체보기 모달 닫기
  */
 const closeFullView = () => {
-  showFullModal.value = false;
-};
+  showFullModal.value = false
+  // 모달 닫을 때 드래그 위치 초기화
+  position.value = { x: 0, y: 0 }
+  isDragging.value = false
+}
 
 /**
  * 지원서 승인 처리
  */
-const approveApplication = (applicationId: number) => {
-  const application = applications.value.find((app) => app.id === applicationId);
+const approveApplication = async (applicationId: number) => {
+  const application = applications.value.find((app) => app.id === applicationId)
   if (application) {
-    application.status = 'accepted';
-    alert(`${application.partyName} 지원서가 승인되었습니다.`);
+    await kyWithCustom(
+      'patch',
+      `v1/party/application/${applicationId}/ACCEPTED?partyRecruitId=${application.partyRecruit.id}`
+    )
+    application.status = 'ACCEPTED'
+    customSuccess(`지원서가 승인되었습니다.`)
   }
-};
+}
 
 /**
  * 지원서 거절 처리
  */
-const rejectApplication = (applicationId: number) => {
-  const application = applications.value.find((app) => app.id === applicationId);
+const rejectApplication = async (applicationId: number) => {
+  await kyWithCustom('patch', `v1/party/application/${applicationId}/REJECTED`)
+  const application = applications.value.find((app) => app.id === applicationId)
   if (application) {
-    application.status = 'rejected';
-    alert(`${application.partyName} 지원서가 거절되었습니다.`);
+    application.status = 'REJECTED'
+    customSuccess(`컷!!!!!`)
   }
-};
+}
+
+const formatTimeAgo = (createdAt: number) => {
+  const now = dayjs()
+  const created = dayjs(createdAt * 1000) // 초 단위를 밀리초로 변환
+  const diffMinutes = now.diff(created, 'minute')
+
+  if (diffMinutes < 1) {
+    return '방금 전'
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes}분 전`
+  } else if (diffMinutes < 1440) {
+    // 24시간
+    const diffHours = Math.floor(diffMinutes / 60)
+    return `${diffHours}시간 전`
+  } else if (diffMinutes < 10080) {
+    // 7일
+    const diffDays = Math.floor(diffMinutes / 1440)
+    return `${diffDays}일 전`
+  } else {
+    return created.format('YYYY-MM-DD')
+  }
+}
 
 /**
  * 드래그 관련 상태와 함수들
  */
-const isDragging = ref(false);
-const dragOffset = ref({ x: 0, y: 0 });
-const position = ref({ x: 0, y: 0 });
-const applicationHistoryRef = ref<HTMLElement | null>(null);
+const isDragging = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
+const position = ref({ x: 0, y: 0 })
+const applicationHistoryRef = ref<HTMLElement | null>(null)
 
 // 원래 크기 저장
-const originalSize = ref({ width: 0, height: 0 });
+const originalSize = ref({ width: 0, height: 0 })
 
 /**
  * 마우스 드래그 시작
  */
 const onMouseDown = (event: MouseEvent) => {
-  isDragging.value = true;
-  const rect = applicationHistoryRef.value?.getBoundingClientRect();
+  // 전체보기 버튼 클릭 시에는 드래그 시작하지 않음
+  if ((event.target as HTMLElement).closest('.view-all-button')) {
+    return
+  }
+
+  isDragging.value = true
+  const rect = applicationHistoryRef.value?.getBoundingClientRect()
   if (rect) {
     // 원래 크기 저장
     originalSize.value = {
       width: rect.width,
-      height: rect.height,
-    };
+      height: rect.height
+    }
 
     dragOffset.value = {
       x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    };
+      y: event.clientY - rect.top
+    }
   }
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
-  event.preventDefault();
-};
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+  event.preventDefault()
+}
 
 /**
  * 마우스 드래그 중
  */
 const onMouseMove = (event: MouseEvent) => {
-  if (!isDragging.value) return;
+  if (!isDragging.value) return
 
   position.value = {
     x: event.clientX - dragOffset.value.x,
-    y: event.clientY - dragOffset.value.y,
-  };
-};
+    y: event.clientY - dragOffset.value.y
+  }
+}
 
 /**
  * 마우스 드래그 종료
  */
 const onMouseUp = () => {
-  isDragging.value = false;
-  document.removeEventListener('mousemove', onMouseMove);
-  document.removeEventListener('mouseup', onMouseUp);
-};
+  isDragging.value = false
+  document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('mouseup', onMouseUp)
+}
 
 /**
  * 드래그 스타일 계산
  */
 const dragStyle = computed(() => {
+  // 모달이 열려있을 때는 드래그 스타일 적용하지 않음
+  if (showFullModal.value) {
+    return {}
+  }
+
   if (position.value.x === 0 && position.value.y === 0) {
-    return {};
+    return {}
   }
 
   return {
@@ -214,22 +205,14 @@ const dragStyle = computed(() => {
     width: `${originalSize.value.width}px`,
     height: `${originalSize.value.height}px`,
     maxHeight: 'none', // 드래그 중에는 최대 높이 제한 해제
-    minHeight: 'unset', // 최소 높이 제한 해제
-  };
-});
+    minHeight: 'unset' // 최소 높이 제한 해제
+  }
+})
 
-// 기존 HTML5 드래그 이벤트들 (제거)
+// HTML5 드래그 이벤트 방지
 const onDragStart = (event: DragEvent) => {
-  event.preventDefault();
-};
-
-const onDrag = (event: DragEvent) => {
-  event.preventDefault();
-};
-
-const onDragEnd = (event: DragEvent) => {
-  event.preventDefault();
-};
+  event.preventDefault()
+}
 </script>
 
 <template>
@@ -254,23 +237,19 @@ const onDragEnd = (event: DragEvent) => {
         class="application-item"
       >
         <div class="item-header">
-          <div class="party-name">
-            <span class="status-icon">{{ getStatusIcon(application.status) }}</span>
-            {{ application.partyName }}
-          </div>
           <div :style="{ backgroundColor: statusColor[application.status] }" class="status-badge">
             {{ statusText[application.status] }}
           </div>
         </div>
 
         <div class="item-content">
-          {{ truncateContent(application.content) }}
+          {{ truncateContent(application.resume.contents) }}
         </div>
 
         <div class="item-footer">
-          <span class="submitted-time">{{ application.submittedAt }}</span>
+          <span class="submitted-time">{{ formatTimeAgo(application.metadata.createdAt) }}</span>
           <!-- 대기중인 지원서에 승인/거절 버튼 추가 -->
-          <div v-if="application.status === 'pending'" class="action-buttons">
+          <div v-if="application.status === 'PENDING'" class="action-buttons">
             <button class="approve-button" @click="approveApplication(application.id)">승인</button>
             <button class="reject-button" @click="rejectApplication(application.id)">거절</button>
           </div>
@@ -279,30 +258,32 @@ const onDragEnd = (event: DragEvent) => {
     </div>
 
     <div class="history-footer">
-      <button class="view-all-button" @click="openFullView">전체보기</button>
+      <button class="view-all-button" @click.stop="openFullView">전체보기</button>
     </div>
 
-    <!-- 전체보기 모달 -->
-    <ApplicationHistoryModal :show="showFullModal" @close="closeFullView" />
+    <!-- 전체보기 모달 - Teleport로 body에 직접 렌더링 -->
+    <Teleport to="body">
+      <ApplicationHistoryModal :show="showFullModal" @close="closeFullView" />
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
 .application-history {
-  width: 300px;
+  width: 450px;
   background-color: var(--card-bg-color);
   border-radius: 12px;
   border: 1px solid var(--border-color);
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  height: fit-content;
-  max-height: 80vh;
+  height: 450px;
+  min-height: 450px;
+  max-height: 450px;
   display: flex;
   flex-direction: column;
   cursor: grab;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: transform 0.2s ease,
+  box-shadow 0.2s ease;
 }
 
 .application-history:active {

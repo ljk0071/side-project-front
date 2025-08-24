@@ -7,9 +7,11 @@
  */
 import { onMounted, ref } from 'vue';
 import { useAuth } from '@/stores/useAuth';
+import { useResume } from '@/stores/useResume';
 import { customWarning, useCustomModal } from '@/composables/useCustomModal.ts';
-import { openDiscordLogin } from '@/utils/discordAuth.ts';
 import { useEventListener } from '@vueuse/core';
+import { fetchParties } from '@/composables/useParty.ts';
+import { useDiscordAuth } from '@/stores/useDiscordAuth.ts';
 
 // 컴포넌트 프롭스 정의
 interface Props {
@@ -28,10 +30,19 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const auth = useAuth();
+const discordAuth = useDiscordAuth();
+const resumeStore = useResume();
 const { customConfirm } = useCustomModal();
 
 /** 지원서 내용 */
 const applicationContent = ref('');
+
+// 모달이 열릴 때 기존 이력서 조회
+onMounted(() => {
+  if (resumeStore.resume) {
+    applicationContent.value = resumeStore.resume.contents;
+  }
+});
 
 /**
  * 모달 닫기
@@ -45,13 +56,6 @@ const closeModal = () => {
  * 지원서 제출
  */
 const submitResume = async () => {
-  if (applicationContent.value.trim()) {
-    emit('submit', applicationContent.value);
-    applicationContent.value = '';
-  } else {
-    await customWarning('내용을 입력해주세요.');
-    return;
-  }
   if (!auth.isAuthenticated) {
     const confirmed = await customConfirm({
       title: '로그인 필요',
@@ -61,9 +65,23 @@ const submitResume = async () => {
       iconType: 'info',
     });
     if (confirmed) {
-      openDiscordLogin();
+      discordAuth.openDiscordLogin();
     }
     return;
+  }
+
+  if (!applicationContent.value.trim()) {
+    await customWarning('내용을 입력해주세요.');
+    return;
+  }
+
+  const success = await resumeStore.submitResume(applicationContent.value);
+
+  if (success) {
+    await fetchParties();
+    closeModal();
+  } else {
+    await customWarning(resumeStore.error || '이력서 저장에 실패했습니다.');
   }
 };
 
@@ -90,7 +108,7 @@ onMounted(() => {
   <div v-if="show" class="modal-overlay" @click="handleOverlayClick">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h2>지원서 작성</h2>
+        <h2>{{ resumeStore.resume ? '지원서 수정' : '지원서 작성' }}</h2>
         <button class="close-button" @click="closeModal">×</button>
       </div>
       <div class="modal-body">

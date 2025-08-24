@@ -10,6 +10,10 @@ import { useAuth } from '@/stores/useAuth';
 import { customAlert } from '@/composables/useCustomModal.ts';
 import { kyWithCustom } from '@/utils/ky/kyWithCustom.ts';
 import { useEventListener } from '@vueuse/core';
+import { fetchParties, parties } from '@/composables/useParty.ts';
+import { useMyWebSocket } from '@/composables/useMyWebSocket.ts';
+import type { ChatRoom } from '@/types/response.ts';
+import { useActiveParty } from '@/stores/useActiveParty.ts';
 
 // 컴포넌트 프롭스 정의
 interface Props {
@@ -28,6 +32,8 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const auth = useAuth();
+const websocket = useMyWebSocket();
+const activeParty = useActiveParty();
 
 /** 모집글 내용 */
 const recruitmentContent = ref('');
@@ -44,23 +50,43 @@ const closeModal = () => {
  * 모집글 제출
  */
 const submitRecruitment = async () => {
+  // 1. 입력 검증 워크플로우
   if (!recruitmentContent.value.trim()) {
     await customAlert('내용을 입력해주세요.');
     return;
   }
 
+  // 2. 사용자 인증 확인 워크플로우
   if (!(await auth.checkSignIn())) {
     return;
   }
 
-  await kyWithCustom('post', 'v1/party', {
+  // 3. 모집글 작성 API 호출 워크플로우
+  const response = await kyWithCustom('post', 'v1/party', {
     article: {
       contents: recruitmentContent.value,
     },
-  });
+  }).json<{ data: number }>();
 
+  const partyRecruitId = response.data;
+
+  // 4. UI 상태 초기화 및 데이터 새로고침 워크플로우
   recruitmentContent.value = '';
+  fetchParties().then((v) => (parties.value = v));
+
+  // 5. 채팅방 생성 워크플로우
+  await kyWithCustom('post', `api/chat/rooms/${partyRecruitId}`).json<{
+    data: ChatRoom;
+  }>();
+
+  // 6. WebSocket 연결 및 파티 참여 워크플로우
+  await websocket.connect();
+  websocket.joinParty(partyRecruitId);
+
+  // 7. 모달 닫기 워크플로우
   closeModal();
+
+  activeParty.setActiveParty(true);
 };
 
 /**

@@ -5,12 +5,11 @@
  * 이 컴포넌트는 파티/이벤트 카드 목록을 표시하고 페이지네이션을 관리합니다.
  * 검색어와 선택된 필터에 따라 카드를 필터링하고, 페이지당 일정 수의 카드를 표시합니다.
  */
-import {computed, onMounted, onUnmounted, ref, watch} from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import PartyCard from './PartyCard.vue';
-// import {koreanSearch} from '@/utils/koreanSearch'; // 서버에서 검색 처리하므로 미사용
-import {kyWithCustom} from '@/utils/ky/kyWithCustom.ts';
-import type {Party} from '@/components/PartyCard.vue';
-import {customSuccess} from "@/composables/useCustomModal.ts";
+import { useResume } from '@/stores/useResume.ts';
+import { fetchParties, parties } from '@/composables/useParty.ts';
+import { usePartyOwner } from '@/stores/usePartyOwner.ts';
 
 // 컴포넌트 프롭스 정의
 const props = defineProps<{
@@ -24,14 +23,24 @@ const props = defineProps<{
 
 /** 현재 페이지 번호 */
 const currentPage = ref(1);
-/** 페이지당 카드 수 */
-const cardsPerPage = 12; // 3열 x 3행 = 9개
+
+const resumeStore = useResume();
+const partyOwner = usePartyOwner();
 
 /**
- * 카드 데이터 배열
- * 각 카드는 제목, 설명, 태그, 이미지 색상, 현재 멤버 수, 최대 멤버 수 정보를 포함합니다.
+ * 사이드바 유무에 따른 동적 컬럼 수 계산
  */
-const parties = ref<Array<Party>>([]);
+const columnsCount = computed(() => {
+  // 지원서 목록이 숨겨져 있으면 더 많은 컬럼 사용
+  return partyOwner.hasCreatedParty ? 3 : 4; // 사이드바 있으면 3열, 없으면 4열
+});
+
+/**
+ * 동적 페이지당 카드 수 계산
+ */
+const dynamicCardsPerPage = computed(() => {
+  return columnsCount.value * 4; // 4행 기준
+});
 
 /**
  * 디바운스된 검색어를 위한 ref
@@ -39,58 +48,29 @@ const parties = ref<Array<Party>>([]);
 const debouncedSearchQuery = ref('');
 
 /**
- * API 응답 타입 정의
- */
-interface ApiResponse<T> {
-  data: T;
-  message?: string;
-}
-
-
-/**
- * API 호출 함수
- */
-const fetchParties = async (searchKeyword: string = '') => {
-  const queryParams: any = {searchConditions: 'ALL'};
-
-  if (searchKeyword.trim()) {
-    queryParams.searchKeyword = searchKeyword.trim();
-  }
-
-  console.log()
-
-  const response = await kyWithCustom('get', 'v1/party', queryParams).json() as ApiResponse<Party[]>;
-  parties.value = response.data;
-};
-
-/**
  * 검색어 디바운싱 로직
  */
 let searchTimeout: number | null = null;
-watch(() => props.searchQuery, (newQuery) => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-  }
+watch(
+  () => props.searchQuery,
+  (newQuery) => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
 
-  searchTimeout = setTimeout(async () => {
-    debouncedSearchQuery.value = newQuery;
-    await fetchParties(newQuery);
-  }, 300); // 300ms 디바운스
-});
-
-/**
- * 서버에서 이미 필터링된 데이터를 받으므로 그대로 반환
- */
-const filteredParties = computed(() => {
-  return parties.value;
-});
+    searchTimeout = setTimeout(async () => {
+      debouncedSearchQuery.value = newQuery;
+      await fetchParties(newQuery);
+    }, 300); // 300ms 디바운스
+  },
+);
 
 /**
  * 총 페이지 수 계산
- * 필터링된 카드 수와 페이지당 카드 수를 기반으로 계산합니다.
+ * 필터링된 카드 수와 동적 페이지당 카드 수를 기반으로 계산합니다.
  */
 const totalPages = computed(() => {
-  return Math.ceil(filteredParties.value.length / cardsPerPage);
+  return Math.ceil(parties.value.length / dynamicCardsPerPage.value);
 });
 
 /**
@@ -98,9 +78,9 @@ const totalPages = computed(() => {
  * 현재 페이지 번호에 따라 해당 페이지에 표시될 카드들만 추출합니다.
  */
 const paginatedParties = computed(() => {
-  const startIndex = (currentPage.value - 1) * cardsPerPage;
-  const endIndex = startIndex + cardsPerPage;
-  return filteredParties.value.slice(startIndex, endIndex);
+  const startIndex = (currentPage.value - 1) * dynamicCardsPerPage.value;
+  const endIndex = startIndex + dynamicCardsPerPage.value;
+  return parties.value.slice(startIndex, endIndex);
 });
 
 /**
@@ -114,26 +94,34 @@ const resetPagination = () => {
 // 디바운스된 검색어나 필터 변경 시 페이지네이션 초기화
 watch([debouncedSearchQuery, () => props.selectedFilter], resetPagination);
 
+// 사이드바 상태 변경 시 페이지네이션 초기화 (카드 수가 변경되므로)
+watch(() => partyOwner.hasCreatedParty, resetPagination);
+
 /**
  * 엔터 키 즉시 검색 처리
  */
-watch(() => props.searchEnterTrigger, async (newTrigger) => {
-  if (newTrigger && newTrigger > 0) {
-    // 기존 디바운스 타이머 클리어
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
+watch(
+  () => props.searchEnterTrigger,
+  async (newTrigger) => {
+    if (newTrigger && newTrigger > 0) {
+      // 기존 디바운스 타이머 클리어
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      // 즉시 검색 실행
+      debouncedSearchQuery.value = props.searchQuery;
+      await fetchParties(props.searchQuery);
+      resetPagination();
     }
-    // 즉시 검색 실행
-    debouncedSearchQuery.value = props.searchQuery;
-    await fetchParties(props.searchQuery);
-    resetPagination();
-  }
-});
+  },
+);
 
 onMounted(async () => {
   // 초기 검색어 설정 및 데이터 로드
   debouncedSearchQuery.value = props.searchQuery;
-  await fetchParties(props.searchQuery);
+  parties.value = await fetchParties(props.searchQuery);
+  // 파티 목록을 가져온 후 지원 상태도 가져오기
+  await resumeStore.fetchAppliedParties();
 });
 
 onUnmounted(() => {
@@ -148,13 +136,16 @@ onUnmounted(() => {
   <div class="card-list-container">
     <!-- 카드 목록 영역 -->
     <div class="card-list-wrapper">
-      <div class="card-list">
+      <div class="card-list" :class="partyOwner.hasCreatedParty ? 'has-sidebar' : 'no-sidebar'">
         <PartyCard
           v-for="party in paginatedParties"
           :key="party.id"
           :id="party.id"
           :contents="party.article.contents"
           :currentMembers="party.currentMembers ?? 1"
+          :userUniqueId="party.userUniqueId"
+          :isApplied="resumeStore.appliedParties.includes(party.id)"
+          :isRejected="resumeStore.rejectedParties.includes(party.id)"
         />
       </div>
     </div>
@@ -192,7 +183,7 @@ onUnmounted(() => {
     </div>
 
     <!-- 검색 결과가 없을 때 메시지 -->
-    <div v-if="filteredParties.length === 0" class="no-results">검색 결과가 없습니다.</div>
+    <div v-if="parties.length === 0" class="no-results">검색 결과가 없습니다.</div>
   </div>
 </template>
 
@@ -203,30 +194,39 @@ onUnmounted(() => {
   flex-direction: column;
   width: 100%;
   height: 100%; /* 부모 컨테이너 높이에 맞춤 */
-  padding: 20px 0; /* 자연스러운 여백 */
+  padding: 20px 0 20px 20px; /* 상하 여백만, 좌우 여백 제거 */
 }
 
 /* 카드 목록 래퍼 */
 .card-list-wrapper {
   flex: 1; /* 남은 공간 모두 사용 */
   display: flex;
-  align-items: center; /* 카드를 세로 중앙에 배치 */
+  align-items: flex-start; /* 카드를 상단부터 배치 */
+  justify-content: flex-start; /* 왼쪽 정렬 */
 }
 
-/* 카드 목록 그리드 레이아웃 */
+/* 카드 목록 플렉스 레이아웃 */
 .card-list {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr); /* 3열로 변경하여 카드 크기 증가 */
+  display: flex;
+  flex-wrap: wrap;
   gap: 1.5vw; /* 간격을 더 넓게 */
   width: 100%;
-  max-width: 1200px; /* 최대 너비 제한으로 가독성 향상 */
-  margin: 0 auto; /* 중앙 정렬 */
+  max-width: 1400px; /* 최대 너비를 늘려서 4열 수용 */
+  margin: 0; /* 왼쪽 정렬로 변경 */
+  align-items: flex-start; /* 카드를 상단 정렬 */
+  justify-content: flex-start; /* 왼쪽 정렬 명시 */
 }
 
-/* 카드 16:9 비율 적용 */
-.card-list > * {
-  aspect-ratio: 16 / 9; /* 16:9 비율 고정 */
-  max-width: 100%;
+/* 사이드바가 있을 때 - 3열 배치 */
+.card-list.has-sidebar > * {
+  flex: 0 0 calc(33.333% - 1vw);
+  max-width: calc(33.333% - 1vw);
+}
+
+/* 사이드바가 없을 때 - 4열 배치 */
+.card-list.no-sidebar > * {
+  flex: 0 0 calc(25% - 1.125vw);
+  max-width: calc(25% - 1.125vw);
 }
 
 /* 페이지네이션 래퍼 */
@@ -241,17 +241,27 @@ onUnmounted(() => {
 /* 반응형 디자인 */
 @media (max-width: 1024px) {
   .card-list {
-    grid-template-columns: repeat(2, 1fr); /* 태블릿에서 2열 */
     gap: 3vw;
     max-width: 800px;
+  }
+
+  .card-list.has-sidebar > *,
+  .card-list.no-sidebar > * {
+    flex: 0 0 calc(50% - 1.5vw); /* 태블릿에서 2열 */
+    max-width: calc(50% - 1.5vw);
   }
 }
 
 @media (max-width: 768px) {
   .card-list {
-    grid-template-columns: 1fr; /* 모바일에서 1열 */
     gap: 4vw;
     max-width: 400px;
+  }
+
+  .card-list.has-sidebar > *,
+  .card-list.no-sidebar > * {
+    flex: 0 0 100%; /* 모바일에서 1열 */
+    max-width: 100%;
   }
 
   .card-list-container {
@@ -285,8 +295,9 @@ onUnmounted(() => {
   font-size: 16px; /* 가시성을 위해 글꼴 크기 증가 */
   font-weight: bold; /* 가시성을 위해 굵게 표시 */
   color: var(--text-color, #333);
-  transition: background-color 0.2s,
-  color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 /* 페이지네이션 버튼 호버 효과 */
@@ -328,8 +339,9 @@ onUnmounted(() => {
   cursor: pointer;
   font-size: 14px;
   color: var(--text-color, #333);
-  transition: background-color 0.2s,
-  color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 /* 페이지 번호 호버 효과 */

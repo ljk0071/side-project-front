@@ -6,7 +6,7 @@ export const useNotFound = defineStore(
   () => {
     const is404 = ref(false);
 
-    return { is404: is404 };
+    return { is404 };
   },
   {
     persist: {

@@ -1,10 +1,18 @@
 export type YesNoDeleteStatus = 'Y' | 'N';
 
-export type PartyApplicationStatusTypeEnum = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type PartyApplicationStatusTypeEnum = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
 
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
 
 export type UserType = 'ADMIN' | 'USER' | 'GUEST';
+
+/**
+ * API 응답 타입 정의
+ */
+export interface ApiResponse<T> {
+  data: T;
+  message?: string;
+}
 
 export interface Metadata {
   createdByName: string;
@@ -42,8 +50,8 @@ export interface Notice {
 export interface PartyApplication {
   id: number;
   revision: number;
-  partyRecruitId: number;
-  resumeId: number;
+  partyRecruit: PartyRecruit;
+  resume: Resume;
   status: PartyApplicationStatusTypeEnum;
   metadata: Metadata;
 }
@@ -132,4 +140,12 @@ export interface User {
   email: string;
   description: string;
   metadata: Metadata;
+}
+
+export interface ChatRoom {
+  partyRecruitId: number;
+  creatorId: number;
+  participantCount: number;
+  isActive: boolean;
+  createdAt: string;
 }
