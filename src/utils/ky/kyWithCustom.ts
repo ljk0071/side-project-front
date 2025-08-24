@@ -63,6 +63,7 @@ async function supportsDuplex(): Promise<boolean> {
 let kyInstance: ReturnType<typeof ky.create> | null = null
 
 function createKyWithBasicOptions() {
+  let isFirstRefresh = false
   const kyProperties = useKyProperties()
   kyInstance = ky.create({
     // prefixUrl: `http://localhost/`,
@@ -121,7 +122,8 @@ function createKyWithBasicOptions() {
       afterResponse: [
         async (request, options, response) => {
           if (response.status === 401) {
-            if (response.headers.get('RTR') === 'Y') {
+            if (response.headers.get('RTR') === 'Y' && !isFirstRefresh) {
+              isFirstRefresh = true
               const result = await kyWithCustom(
                 'post',
                 'api/auth/refresh',
@@ -168,6 +170,8 @@ function createKyWithBasicOptions() {
           } catch (parseError) {
             console.error('성공 응답 파싱 실패:', parseError)
           }
+
+          isFirstRefresh = false
 
           return response
         }
