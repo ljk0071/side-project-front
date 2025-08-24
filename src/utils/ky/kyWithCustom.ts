@@ -61,9 +61,10 @@ async function supportsDuplex(): Promise<boolean> {
 
 // 인스턴스 캐싱
 let kyInstance: ReturnType<typeof ky.create> | null = null
+let isFirstRefresh = false
 
 function createKyWithBasicOptions() {
-  let isFirstRefresh = false
+
   const kyProperties = useKyProperties()
   kyInstance = ky.create({
     // prefixUrl: `http://localhost/`,
