@@ -63,7 +63,6 @@ export const useMyWebSocket = () => {
    */
   const connect = async () => {
     if (state.value.isConnected || state.value.isConnecting) {
-      // console.log('이미 연결되었거나 연결 중입니다.')
       return
     }
 
@@ -133,6 +132,7 @@ export const useMyWebSocket = () => {
   })
 
   const joinParty = withWebSocketCheck((partyRecruitId: number): void => {
+    console.log(client.value!)
     client.value!.publish({ destination: `/chat/${partyRecruitId}/join` })
     subscribeParty(partyRecruitId)
     state.value.isJoined = true

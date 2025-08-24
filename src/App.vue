@@ -74,10 +74,10 @@ window.addEventListener('storage', async (e) => {
         if (res.data) {
           activeParty.setActiveParty(true)
         }
-        if (partyOwner.isMyParty) {
-          await websocket.connect()
-          websocket.joinParty(partyOwner.partyRecruitId)
-        }
+        // if (partyOwner.isMyParty) {
+        //   await websocket.connect()
+        //   websocket.joinParty(partyOwner.partyRecruitId)
+        // }
         const resumes = await kyWithCustom('get', 'v1/party/application/my').json<
           ApiResponse<Array<PartyApplication>>
         >()
@@ -174,10 +174,10 @@ onMounted(async () => {
     if (res.data) {
       activeParty.setActiveParty(true)
     }
-    if (partyOwner.isMyParty) {
-      await websocket.connect()
-      websocket.joinParty(partyOwner.partyRecruitId)
-    }
+    // if (partyOwner.isMyParty) {
+    //   await websocket.connect()
+    //   websocket.joinParty(partyOwner.partyRecruitId)
+    // }
     const resumes = await kyWithCustom('get', 'v1/party/application/my').json<
       ApiResponse<Array<PartyApplication>>
     >()

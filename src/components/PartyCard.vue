@@ -247,7 +247,7 @@ const handleSupport = async (event: MouseEvent) => {
 /**
  * 컴포넌트가 마운트될 때 이벤트 리스너 설정
  */
-onMounted(() => {
+onMounted(async () => {
   useEventListener(
     document,
     'click',
@@ -267,6 +267,11 @@ onMounted(() => {
       isExpanded.value = false
     }
   })
+
+  if (partyOwner.isMyParty) {
+    await webSocket.connect()
+    webSocket.joinParty(partyOwner.partyRecruitId)
+  }
 })
 </script>
 
